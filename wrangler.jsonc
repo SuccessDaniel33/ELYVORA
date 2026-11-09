@@ -11,5 +11,13 @@
     "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application"
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "elyvora-core",
+      "database_id": "75242196-af60-40d0-9011-3756593ea9aa",
+      "migrations_dir": "migrations"
+    }
+  ]
 }
