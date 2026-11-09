@@ -27,11 +27,19 @@ npx wrangler login
 npm run deploy
 ```
 
-The Worker is named `elyvora` and will be available on the account's `workers.dev` subdomain after deployment.
+The Worker is named `elyvora` and is served on the account's `workers.dev` subdomain.
 
 ## Git-based deployments
 
-The repository is prepared for Cloudflare Workers Builds. Connect the GitHub repository `SuccessDaniel33/ELYVORA` to the `elyvora` Worker, select `main` as the production branch, and use `npx wrangler deploy` as the deploy command. Pushes to the connected branch will then trigger deployments.
+Cloudflare Workers Builds is connected to this repository:
+
+- GitHub repository: `SuccessDaniel33/ELYVORA`
+- Production branch: `main`
+- Root directory: `/`
+- Build command: none (this project deploys directly)
+- Deploy command: `npx wrangler deploy`
+
+Cloudflare Workers Builds should deploy commits pushed to `main`.
 
 ## Project note
 
