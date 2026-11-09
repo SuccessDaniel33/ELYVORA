@@ -360,6 +360,7 @@
     if(e.target.id==="discover-search"){const pos=e.target.selectionStart;discoverQuery=e.target.value;const view=discoverView();root.innerHTML=view;const next=document.querySelector("#discover-search");next?.focus();next?.setSelectionRange(pos,pos);}
     if(e.target.id==="global-search"){const value=e.target.value.trim();if(value.length>1){discoverQuery=value;go("discover");}}
     if(e.target.id==="chat-search"){const q=e.target.value.toLowerCase();document.querySelectorAll(".contact-row").forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(q));}
+    if(e.target.id==="new-chat-search")searchMembers(e.target.value);
   });
   document.querySelector("#mobile-menu").addEventListener("click",()=>document.querySelector("#sidebar").classList.toggle("open"));
   document.addEventListener("keydown",e=>{
