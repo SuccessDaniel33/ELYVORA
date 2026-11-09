@@ -581,7 +581,15 @@
     if(!authUser){authModal("signin");return;}
     const p=privacySettings||{profileVisibility:"public",contentVisibility:"public",messagePrivacy:"everyone",commentPrivacy:"everyone",showOnline:true,readReceipts:true};
     const select=(name,label,value,options)=>'<div class="form-group"><label>'+label+'</label><select class="form-control" name="'+name+'">'+options.map(x=>'<option value="'+x[0]+'" '+(value===x[0]?"selected":"")+'>'+x[1]+'</option>').join("")+'</select></div>';
-    openModal("Privacy settings",'<form id="privacy-form">'+select("profileVisibility","WHO CAN VIEW YOUR PROFILE",p.profileVisibility,[["public","Everyone"],["followers","Followers only"],["private","Only you"]])+select("contentVisibility","WHO CAN VIEW YOUR CONTENT",p.contentVisibility,[["public","Everyone"],["followers","Followers only"],["private","Only you"]])+select("messagePrivacy","WHO CAN MESSAGE YOU",p.messagePrivacy,[["everyone","Everyone"],["followers","People you follow"],["none","No one"]])+select("commentPrivacy","WHO CAN COMMENT ON YOUR POSTS",p.commentPrivacy,[["everyone","Everyone"],["followers","People you follow"],["none","No one"]])+'<label class="setting-toggle"><input type="checkbox" name="showOnline" '+(p.showOnline?"checked":"")+'> Show my online status</label><label class="setting-toggle"><input type="checkbox" name="readReceipts" '+(p.readReceipts?"checked":"")+'> Allow read receipts</label><div class="callout">Profile, feed, comment and messaging restrictions are applied by the server. Online visibility and read receipts are saved as preferences; live presence and detailed read markers are being expanded.</div><div class="modal-footer"><button type="button" class="button-quiet" data-action="close-modal">Cancel</button><button type="submit" class="button-primary">Save privacy settings</button></div></form>',"ACCOUNT CONTROL");
+    openModal("Privacy settings",'<form id="privacy-form">'+select("profileVisibility","WHO CAN VIEW YOUR PROFILE",p.profileVisibility,[["public","Everyone"],["followers","Followers only"],["private","Only you"]])+select("contentVisibility","WHO CAN VIEW YOUR CONTENT",p.contentVisibility,[["public","Everyone"],["followers","Followers only"],["private","Only you"]])+select("messagePrivacy","WHO CAN MESSAGE YOU",p.messagePrivacy,[["everyone","Everyone"],["followers","People you follow"],["none","No one"]])+select("commentPrivacy","WHO CAN COMMENT ON YOUR POSTS",p.commentPrivacy,[["everyone","Everyone"],["followers","People you follow"],["none","No one"]])+'<label class="setting-toggle"><input type="checkbox" name="showOnline" '+(p.showOnline?"checked":"")+'> Show my online status</label><label class="setting-toggle"><input type="checkbox" name="readReceipts" '+(p.readReceipts?"checked":"")+'> Allow read receipts</label><div class="callout">Profile, feed, comment and messaging restrictions are applied by the server. Online visibility and read receipts are saved as preferences; live presence and detailed read markers are being expanded.</div><button type="button" class="button-quiet" data-action="blocked-members">Manage blocked members</button><div class="modal-footer"><button type="button" class="button-quiet" data-action="close-modal">Cancel</button><button type="submit" class="button-primary">Save privacy settings</button></div></form>',"ACCOUNT CONTROL");
+  }
+  async function blockedMembersModal(){
+    if(!authUser){authModal("signin");return;}
+    try{
+      const data=await apiRequest("/api/blocks"),users=data.users||[];
+      const rows=users.length?users.map(u=>'<div class="mini-row" style="padding:12px 0;border-bottom:1px solid var(--line)">'+photoAvatar(u.avatar_url,u.display_name)+'<span><b>'+safe(u.display_name)+'</b><small>@'+safe(u.username)+'</small></span><button class="button-quiet" data-action="unblock-user" data-id="'+safe(u.id)+'">Unblock</button></div>').join(""):'<div class="empty-state"><h3>No blocked members</h3><p>Members you block will appear here.</p></div>';
+      openModal("Blocked members",'<div class="mini-list">'+rows+'</div>',"SAFETY & COMMUNITY");
+    }catch(error){toast(error.message,true);}
   }
   function createPost(){
     if(!authUser){authModal("signup");toast("Create an account before publishing to ELYVORA.");return;}
@@ -645,6 +653,8 @@
     else if(a==="forgot-password")forgotPasswordModal(authUser?.email||"");
     else if(a==="resend-verification")resendVerification();
     else if(a==="privacy-settings")privacySettingsModal();
+    else if(a==="blocked-members")blockedMembersModal();
+    else if(a==="unblock-user"){apiRequest("/api/users/"+encodeURIComponent(id)+"/block",{method:"DELETE",body:"{}"}).then(()=>blockedMembersModal()).then(()=>toast("Member unblocked.")).catch(err=>toast(err.message,true));}
     else if(a==="view-profile")viewMemberProfile(id);
     else if(a==="report-user")reportUserModal(id);
     else if(a==="block-user"){
