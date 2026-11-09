@@ -1,5 +1,4 @@
 const SCHEMA_SQL = `
-PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY,email TEXT NOT NULL COLLATE NOCASE UNIQUE,username TEXT NOT NULL COLLATE NOCASE UNIQUE,display_name TEXT NOT NULL,password_hash TEXT NOT NULL,password_salt TEXT NOT NULL,bio TEXT NOT NULL DEFAULT '',location TEXT NOT NULL DEFAULT '',role TEXT NOT NULL DEFAULT '',avatar_url TEXT,is_active INTEGER NOT NULL DEFAULT 1,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,token_hash TEXT NOT NULL UNIQUE,created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,last_seen_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
@@ -39,7 +38,6 @@ INSERT OR IGNORE INTO properties (id,name,city,country,description,price,status)
 ('london-loft','Skyline loft','London','United Kingdom','A bright virtual home overlooking the riverside district.',1800,'available'),
 ('tokyo-retreat','Garden retreat','Tokyo','Japan','A peaceful virtual retreat in the east gardens district.',1350,'available');
 INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES (1,unixepoch());
-PRAGMA user_version = 1;
 `;
 
 let schemaReady;
