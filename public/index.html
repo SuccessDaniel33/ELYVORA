@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#101426">
-  <meta name="description" content="ELYVORA is a social world for connection, discovery, opportunity and play.">
-  <title>ELYVORA — A world that moves with you</title>
+  <meta name="description" content="ELYVORA is a global social network for connection, communication and opportunity.">
+  <title>ELYVORA — A network for what moves you</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/app.css">
   <script src="/app.js" defer></script>
@@ -14,19 +14,17 @@
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
       <a class="brand" href="#" data-view="home" aria-label="ELYVORA home"><span class="brand-symbol">E</span><span class="brand-name">ELYVORA</span></a>
-      <div class="workspace-label">YOUR SPACE</div>
+      <div class="workspace-label">CONNECT</div>
       <nav class="primary-nav" aria-label="Main navigation">
-        <button class="nav-item active" data-view="home"><span class="nav-icon">⌂</span><span>Home</span><span class="nav-shortcut">01</span></button>
-        <button class="nav-item" data-view="discover"><span class="nav-icon">⌕</span><span>Discover</span></button>
-        <button class="nav-item" data-view="world"><span class="nav-icon">⌖</span><span>City</span><span class="nav-pill">NEW</span></button>
-        <button class="nav-item" data-view="messages"><span class="nav-icon">▤</span><span>Messages</span><span class="nav-count" id="message-count">2</span></button>
+        <button class="nav-item active" data-view="home"><span class="nav-icon">⌂</span><span>Home</span></button>
+        <button class="nav-item" data-view="discover"><span class="nav-icon">⌕</span><span>Explore</span></button>
+        <button class="nav-item" data-view="messages"><span class="nav-icon">▤</span><span>Messages</span></button>
       </nav>
-      <div class="workspace-label nav-spacer">BUILD YOUR LIFE</div>
-      <nav class="primary-nav" aria-label="Life navigation">
-        <button class="nav-item" data-view="life"><span class="nav-icon">♙</span><span>My life</span></button>
+      <div class="workspace-label nav-spacer">OPPORTUNITIES</div>
+      <nav class="primary-nav" aria-label="Platform navigation">
         <button class="nav-item" data-view="careers"><span class="nav-icon">▥</span><span>Careers</span></button>
         <button class="nav-item" data-view="economy"><span class="nav-icon">◈</span><span>Economy</span></button>
-        <button class="nav-item" data-view="profile"><span class="nav-icon">◉</span><span>My profile</span></button>
+        <button class="nav-item" data-view="profile"><span class="nav-icon">◉</span><span>Profile</span></button>
       </nav>
       <div class="sidebar-bottom">
         <div class="world-status"><span class="live-dot"></span><span><b>ELYVORA WORLD</b><small>Prototype environment</small></span></div>
@@ -38,14 +36,14 @@
         <div class="mobile-brand"><button class="mobile-menu" id="mobile-menu" aria-label="Open menu">☰</button><span class="brand-symbol">E</span><b>ELYVORA</b></div>
         <div class="breadcrumb"><span class="muted">Your world</span><span class="crumb-slash">/</span><b id="page-title">Home</b></div>
         <label class="global-search"><span>⌕</span><input id="global-search" type="search" placeholder="Search people, places, careers..." autocomplete="off"><kbd>⌘ K</kbd></label>
-        <div class="top-actions"><span class="demo-chip"><i></i> DEMO</span><button class="icon-button" title="Notifications" data-action="notifications">♧<span class="notification-dot"></span></button><button class="create-button" data-action="create-post"><span>＋</span> Create</button><button class="button-quiet account-button" data-action="account" id="account-button">Sign in</button><button class="avatar avatar-you top-avatar" data-action="edit-profile" id="top-avatar" aria-label="Edit profile">A</button></div>
+        <div class="top-actions"><button class="icon-button" title="Notifications" data-action="notifications">♧<span class="notification-dot"></span></button><button class="create-button" data-action="create-post"><span>＋</span> Create</button><button class="button-quiet account-button" data-action="account" id="account-button">Sign in</button><button class="avatar avatar-you top-avatar" data-action="edit-profile" id="top-avatar" aria-label="Edit profile">A</button></div>
       </header>
       <div class="demo-banner" id="demo-banner"><span class="demo-banner-icon">✦</span><span><b>Welcome to the ELYVORA early release.</b> Member accounts, shared posts, private media messaging and one-to-one calls are taking shape. Virtual money and property are still simulations.</span><button data-action="dismiss-banner" aria-label="Dismiss">×</button></div>
       <div class="content-wrap"><section id="view-root" aria-live="polite"></section></div>
     </main>
   </div>
   <nav class="mobile-nav" aria-label="Mobile navigation">
-    <button class="active" data-view="home"><span>⌂</span><small>Home</small></button><button data-view="discover"><span>⌕</span><small>Explore</small></button><button data-view="world"><span>⌖</span><small>City</small></button><button data-view="messages"><span>▤</span><small>Chat</small></button><button data-view="life"><span>♙</span><small>Life</small></button><button data-view="profile"><span>◉</span><small>Me</small></button>
+    <button class="active" data-view="home"><span>⌂</span><small>Home</small></button><button data-view="discover"><span>⌕</span><small>Explore</small></button><button data-view="messages"><span>▤</span><small>Messages</small></button><button data-view="careers"><span>▥</span><small>Careers</small></button><button data-view="profile"><span>◉</span><small>Profile</small></button>
   </nav>
   <div class="modal-backdrop" id="modal" hidden><section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-head"><div><p class="eyebrow" id="modal-eyebrow">ELYVORA STUDIO</p><h2 id="modal-title">Create a post</h2></div><button class="icon-button modal-close" data-action="close-modal" aria-label="Close">×</button></div><div id="modal-content"></div></section></div>
   <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
