@@ -407,6 +407,13 @@ export async function handleApi(request, env) {
       return json({notifications:rows.results||[]});
     }
 
+    const notificationReadMatch=path.match(/^\/api\/notifications\/([a-f0-9-]+)\/read$/);
+    if(method==="POST"&&notificationReadMatch){
+      const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
+      await env.DB.prepare("UPDATE notifications SET read_at=? WHERE id=? AND user_id=? AND read_at IS NULL").bind(Math.floor(Date.now()/1000),notificationReadMatch[1],user.id).run();
+      return json({markedRead:true});
+    }
+
     const reportMatch=path==="/api/reports";
     if(method==="POST"&&reportMatch){
       const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
