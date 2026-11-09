@@ -288,6 +288,8 @@
     if(f){discoverFilter=f.dataset.filter;render();return;}
     const chat=e.target.closest("[data-chat]");
     if(chat){state.activeChat=chat.dataset.chat;save();render();return;}
+    const conversation=e.target.closest("[data-conversation]");
+    if(conversation){openConversation(conversation.dataset.conversation).catch(err=>toast(err.message,true));return;}
     const b=e.target.closest("[data-action]");
     if(!b)return;
     const a=b.dataset.action,id=b.dataset.id;
