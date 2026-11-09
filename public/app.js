@@ -380,6 +380,10 @@
     else if(a==="new-chat")newChatModal();
     else if(a==="start-chat")beginConversation(id);
     else if(a==="explore-item")toast("Opening "+b.dataset.name+" — discovery details are being built.");
+    else if(a==="follow-user"){
+      if(!authUser){authModal("signin");return;}
+      apiRequest("/api/users/"+encodeURIComponent(id)+"/follow",{method:"POST",body:"{}"}).then(()=>{toast("You're now following this member.");b.textContent="Following ✓";b.disabled=true;}).catch(err=>toast(err.message,true));
+    }
     else if(a==="visit-place")toast("Welcome to the "+b.dataset.name+" destination preview.");
     else if(a==="career"){
       const remoteJob=(remoteJobs||[]).find(x=>x.id===id);
