@@ -131,6 +131,7 @@
       await refreshConversations();
       if(result.conversationId)activeConversationId=result.conversationId;
       await refreshMessages(activeConversationId);
+      connectChatSocket(activeConversationId);
       closeModal();go("messages");render();
       toast(result.existing?"Conversation opened.":"Conversation started.");
     }catch(error){toast(error.message,true);}
@@ -157,6 +158,7 @@
       const me=await apiRequest("/api/me");
       if(me.user){applyUser(me.user);await Promise.all([refreshFeed(),refreshEconomy(),refreshJobs(),refreshConversations()]);}
       else{await refreshJobs();}
+      if(currentView==="messages"&&authUser)connectChatSocket(activeConversationId);
       render();
     }catch(error){console.warn("ELYVORA remote services are not ready:",error.message);}
   }
@@ -171,12 +173,12 @@
     const button=form.querySelector('button[type="submit"]');if(button){button.disabled=true;button.textContent="Please wait…";}
     try{
       const result=await apiRequest(mode==="signup"?"/api/auth/register":"/api/auth/login",{method:"POST",body:JSON.stringify(payload)});
-      applyUser(result.user);await Promise.all([refreshFeed(),refreshEconomy(),refreshJobs(),refreshConversations()]);closeModal();render();toast(mode==="signup"?"Your ELYVORA account is ready.":"Welcome back to ELYVORA.");
+      applyUser(result.user);await Promise.all([refreshFeed(),refreshEconomy(),refreshJobs(),refreshConversations()]);closeModal();if(currentView==="messages")connectChatSocket(activeConversationId);render();toast(mode==="signup"?"Your ELYVORA account is ready.":"Welcome back to ELYVORA.");
     }catch(error){toast(error.message,true);if(button){button.disabled=false;button.textContent=mode==="signup"?"Create account":"Sign in";}}
   }
   async function logout(){
     try{await apiRequest("/api/auth/logout",{method:"POST",body:"{}"});}catch{}
-    authUser=null;remoteEconomy=null;remoteJobs=null;remoteConversations=null;remoteMessages=[];activeConversationId=null;remoteFeedLoaded=false;state.posts=structuredClone(starter.posts);state.profile=structuredClone(starter.profile);state.balance=starter.balance;save();closeModal();render();toast("You have signed out.");
+    disconnectChatSocket();authUser=null;remoteEconomy=null;remoteJobs=null;remoteConversations=null;remoteMessages=[];activeConversationId=null;remoteFeedLoaded=false;state.posts=structuredClone(starter.posts);state.profile=structuredClone(starter.profile);state.balance=starter.balance;save();closeModal();render();toast("You have signed out.");
   }
   function money(n){return new Intl.NumberFormat("en-US").format(n);}
   function avatar(letter, extra=""){return '<span class="avatar '+extra+'">'+safe(letter||"E")+"</span>";}
@@ -295,7 +297,8 @@
   function go(view){
     if(!["home","discover","world","messages","careers","economy","profile"].includes(view))return;
     currentView=view;document.querySelector("#sidebar").classList.remove("open");render();window.scrollTo({top:0,behavior:"smooth"});
-    if(view==="messages"&&authUser){refreshConversations().then(render).catch(err=>toast(err.message,true));}
+    if(view==="messages"&&authUser){refreshConversations().then(()=>{connectChatSocket(activeConversationId);render();}).catch(err=>toast(err.message,true));}
+    else if(view!=="messages")disconnectChatSocket();
   }
   function toast(text,warn=false){
     const region=document.querySelector("#toast-region"),el=document.createElement("div");
