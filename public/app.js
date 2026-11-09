@@ -27,6 +27,8 @@
   let remoteConversations = null;
   let remoteMessages = [];
   let activeConversationId = null;
+  let chatSocket = null;
+  let chatSocketConversationId = null;
   let currentView = "home";
   let discoverFilter = "All";
   let discoverQuery = "";
