@@ -39,7 +39,7 @@ Cloudflare Workers Builds is connected to this repository:
 - Build command: none (this project deploys directly)
 - Deploy command: `npx wrangler deploy`
 
-Cloudflare Workers Builds should deploy commits pushed to `main`.
+Every push to `main` triggers a Cloudflare production build and deployment.
 
 ## Project note
 
