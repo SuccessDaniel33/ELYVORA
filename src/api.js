@@ -229,9 +229,19 @@ export async function handleApi(request, env) {
       const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
       const data=await bodyJson(request), body=String(data.body||"").trim(), visibility=data.visibility==="followers"?"followers":"public";
       if(!body||body.length>5000)return fail("A post must contain 1–5,000 characters.");
+      let mediaUrl=null,mediaType=null;
+      if(data.mediaUrl){
+        try{
+          const parsed=new URL(String(data.mediaUrl).trim());
+          if(parsed.protocol!=="https:"||parsed.username||parsed.password)return fail("Media links must be secure HTTPS URLs.");
+          mediaUrl=parsed.toString();
+          mediaType=data.mediaType==="video"?"video":"image";
+        }catch{return fail("Enter a valid HTTPS media URL.");}
+        if(mediaUrl.length>2000)return fail("Media URL is too long.");
+      }
       const id=randomId(),now=Math.floor(Date.now()/1000);
-      await env.DB.prepare("INSERT INTO posts (id,user_id,body,visibility,created_at,updated_at) VALUES (?,?,?,?,?,?)").bind(id,user.id,body,visibility,now,now).run();
-      return json({post:{id,body,visibility,created_at:now,author:publicUser(user),likes:0,comments:0,liked:0}},201);
+      await env.DB.prepare("INSERT INTO posts (id,user_id,body,media_url,media_type,visibility,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)").bind(id,user.id,body,mediaUrl,mediaType,visibility,now,now).run();
+      return json({post:{id,body,media_url:mediaUrl,media_type:mediaType,visibility,created_at:now,author:publicUser(user),likes:0,comments:0,liked:0}},201);
     }
 
     const likeMatch=path.match(/^\/api\/posts\/([a-f0-9-]+)\/like$/);
