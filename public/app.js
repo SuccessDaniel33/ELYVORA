@@ -715,7 +715,7 @@
       else{state.balance-=p.price;state.owned.push(id);addTransaction("Acquired "+p.name,p.price,"out","Virtual property · "+p.place);save();render();toast(p.name+" added to your virtual portfolio.");}
     }
   });
-  document.addEventListener("submit",e=>{
+  document.addEventListener("submit",async e=>{
     if(e.target.id==="auth-form"){
       e.preventDefault();submitAuth(e.target);
     }else if(e.target.id==="comment-form"){
