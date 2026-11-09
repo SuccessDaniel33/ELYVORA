@@ -684,7 +684,7 @@ export async function handleApi(request, env) {
           SELECT 1 FROM conversation_members cp WHERE cp.conversation_id=c.id AND cp.user_id<>? AND EXISTS(
             SELECT 1 FROM user_blocks b WHERE (b.blocker_id=? AND b.blocked_id=cp.user_id) OR (b.blocker_id=cp.user_id AND b.blocked_id=?)
           )
-        ) ORDER BY COALESCE(last_message_at,c.updated_at) DESC LIMIT 50`).bind(user.id,user.id,user.id,user.id,user.id,user.id,user.id).all();
+        ) ORDER BY COALESCE(last_message_at,c.updated_at) DESC LIMIT 50`).bind(user.id,user.id,user.id,user.id,user.id,user.id,user.id,user.id).all();
       return json({conversations:rows.results||[]});
     }
     if(method==="POST"&&path==="/api/conversations"){
