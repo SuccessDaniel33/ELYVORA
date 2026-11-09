@@ -24,6 +24,9 @@
   let remoteFeedLoaded = false;
   let remoteEconomy = null;
   let remoteJobs = null;
+  let remoteConversations = null;
+  let remoteMessages = [];
+  let activeConversationId = null;
   let currentView = "home";
   let discoverFilter = "All";
   let discoverQuery = "";
