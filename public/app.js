@@ -143,7 +143,7 @@
   }
   async function logout(){
     try{await apiRequest("/api/auth/logout",{method:"POST",body:"{}"});}catch{}
-    authUser=null;remoteEconomy=null;remoteJobs=null;remoteFeedLoaded=false;state.posts=structuredClone(starter.posts);state.profile=structuredClone(starter.profile);state.balance=starter.balance;save();closeModal();render();toast("You have signed out.");
+    authUser=null;remoteEconomy=null;remoteJobs=null;remoteConversations=null;remoteMessages=[];activeConversationId=null;remoteFeedLoaded=false;state.posts=structuredClone(starter.posts);state.profile=structuredClone(starter.profile);state.balance=starter.balance;save();closeModal();render();toast("You have signed out.");
   }
   function money(n){return new Intl.NumberFormat("en-US").format(n);}
   function avatar(letter, extra=""){return '<span class="avatar '+extra+'">'+safe(letter||"E")+"</span>";}
