@@ -121,7 +121,7 @@
     try{
       await apiRequest("/api/health");
       const me=await apiRequest("/api/me");
-      if(me.user){applyUser(me.user);await Promise.all([refreshFeed(),refreshEconomy(),refreshJobs()]);}
+      if(me.user){applyUser(me.user);await Promise.all([refreshFeed(),refreshEconomy(),refreshJobs(),refreshConversations()]);}
       else{await refreshJobs();}
       render();
     }catch(error){console.warn("ELYVORA remote services are not ready:",error.message);}
