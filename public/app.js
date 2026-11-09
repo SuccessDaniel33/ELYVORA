@@ -762,7 +762,7 @@
           interests,avatarUrl:photo?.url||state.profile.avatarUrl||null,coverImageUrl:cover?.url||state.profile.coverImageUrl||null
         };
         const result=await apiRequest("/api/profile",{method:"POST",body:JSON.stringify(next)});
-        applyUser(result.user);await refreshOwnProfile();closeModal();render();toast("Your profile has been saved.");
+        applyUser(result.user);await Promise.all([refreshOwnProfile(),refreshFeed(),refreshConversations()]);if(discoverQuery.trim().length>=2)await searchDiscoverMembers(discoverQuery);closeModal();render();toast("Your profile has been saved.");
       })().catch(err=>{toast(err.message,true);if(button){button.disabled=false;button.textContent="Save profile";}});
     }else if(e.target.id==="auth-forgot-form"){
       e.preventDefault();const email=String(new FormData(e.target).get("email")||"").trim();
