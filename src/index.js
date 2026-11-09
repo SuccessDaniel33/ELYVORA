@@ -1,4 +1,5 @@
-export { ChatRoom } from "./chat-room.js";
+import { ChatRoom } from "./chat-room.js";
+export { ChatRoom };
 
 /**
  * ELYVORA Cloudflare Worker.
