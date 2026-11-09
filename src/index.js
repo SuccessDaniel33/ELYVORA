@@ -31,9 +31,19 @@ export default {
     headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
     headers.set("X-Frame-Options", "DENY");
     headers.set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(self)");
-    headers.set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; connect-src 'self'; media-src 'self' blob: https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+    headers.set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; connect-src 'self' wss:; media-src 'self' blob: https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
     headers.set("Cross-Origin-Opener-Policy", "same-origin");
     headers.set("X-Permitted-Cross-Domain-Policies", "none");
+
+    // Cloudflare adds a special webSocket property to 101 upgrade responses.
+    // Preserve it when applying response security headers.
+    if (response.webSocket) {
+      return new Response(null, {
+        status: 101,
+        webSocket: response.webSocket,
+        headers
+      });
+    }
 
     return new Response(response.body, {
       status: response.status,
