@@ -107,6 +107,8 @@
     document.querySelector("#side-handle").textContent="@"+state.profile.handle;
     document.querySelector("#side-avatar").textContent=initials(state.profile.name);
     document.querySelector("#top-avatar").textContent=initials(state.profile.name);
+    const accountButton=document.querySelector("#account-button");
+    if(accountButton)accountButton.textContent=authUser?"Sign out":"Sign in";
     document.querySelector("#message-count").textContent=Object.values(state.messages).reduce((n,a)=>n+a.length,0)>0?"2":"0";
     document.querySelector("#demo-banner").hidden=!state.banner;
   }
