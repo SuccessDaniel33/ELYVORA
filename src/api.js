@@ -249,7 +249,7 @@ export async function handleApi(request, env) {
     const method = request.method.toUpperCase();
     if (["POST", "PUT", "PATCH", "DELETE"].includes(method) && !checkSameOrigin(request)) return fail("Cross-origin request blocked.", 403, "origin_rejected");
 
-    if (method === "GET" && path === "/api/health") return json({ ok: true, service: "elyvora-api", schemaVersion: 2, time: new Date().toISOString() });
+    if (method === "GET" && path === "/api/health") return json({ok:true,service:"elyvora-api",schemaVersion:3,time:new Date().toISOString()});
 
     const mediaMatch=path.match(/^\/api\/media\/([a-f0-9-]+)$/);
     if(method==="GET"&&mediaMatch){
@@ -511,17 +511,29 @@ export async function handleApi(request, env) {
     }
 
     const commentMatch=path.match(/^\/api\/posts\/([a-f0-9-]+)\/comments$/);
-    if(method==="GET"&&commentMatch){
-      const rows=await env.DB.prepare("SELECT c.id,c.body,c.created_at,u.display_name,u.username,u.avatar_url FROM comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=? AND c.deleted_at IS NULL ORDER BY c.created_at ASC LIMIT 100").bind(commentMatch[1]).all();
-      return json({comments:rows.results||[]});
-    }
-    if(method==="POST"&&commentMatch){
-      const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
+    if(commentMatch&&(method==="GET"||method==="POST")){
+      const viewer=await currentUser(request,env.DB),post=await env.DB.prepare("SELECT p.id,p.user_id FROM posts p WHERE p.id=? AND p.deleted_at IS NULL").bind(commentMatch[1]).first();
+      if(!post)return fail("Post not found.",404,"not_found");
+      if(viewer&&await isBlocked(env.DB,viewer.id,post.user_id))return fail("Post not found.",404,"not_found");
+      const settings=await env.DB.prepare("SELECT profile_visibility,content_visibility,comment_privacy FROM user_privacy WHERE user_id=?").bind(post.user_id).first();
+      const follows=viewer?Boolean(await env.DB.prepare("SELECT 1 FROM follows WHERE follower_id=? AND following_id=?").bind(viewer.id,post.user_id).first()):false;
+      const owner=viewer?.id===post.user_id,profileVisibility=settings?.profile_visibility||"public",contentVisibility=settings?.content_visibility||"public";
+      if(!owner&&profileVisibility==="private"&&!follows)return fail("This post is not available.",403,"content_restricted");
+      if(!owner&&profileVisibility==="followers"&&!follows)return fail("Follow this member to view the discussion.",403,"content_restricted");
+      if(!owner&&contentVisibility==="private")return fail("Comments are not available for this post.",403,"content_restricted");
+      if(!owner&&contentVisibility==="followers"&&!follows)return fail("Follow this member to view the discussion.",403,"content_restricted");
+      if(method==="GET"){
+        const rows=await env.DB.prepare("SELECT c.id,c.body,c.created_at,u.display_name,u.username,u.avatar_url FROM comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=? AND c.deleted_at IS NULL ORDER BY c.created_at ASC LIMIT 100").bind(commentMatch[1]).all();
+        return json({comments:rows.results||[]});
+      }
+      const denied=requireUser(viewer);if(denied)return denied;
+      const commentPrivacy=settings?.comment_privacy||"everyone";
+      if(commentPrivacy==="none"||commentPrivacy==="followers"&&!follows)return fail("This member does not accept comments from your account.",403,"comments_restricted");
       const data=await bodyJson(request),body=String(data.body||"").trim();
       if(!body||body.length>1500)return fail("A comment must contain 1–1,500 characters.");
       const id=randomId(),now=Math.floor(Date.now()/1000);
-      await env.DB.prepare("INSERT INTO comments(id,post_id,user_id,body,created_at) VALUES (?,?,?,?,?)").bind(id,commentMatch[1],user.id,body,now).run();
-      return json({comment:{id,body,created_at:now,author:publicUser(user)}},201);
+      await env.DB.prepare("INSERT INTO comments(id,post_id,user_id,body,created_at) VALUES (?,?,?,?,?)").bind(id,commentMatch[1],viewer.id,body,now).run();
+      return json({comment:{id,body,created_at:now,author:publicUser(await userRecord(env.DB,viewer.id))}},201);
     }
 
     if(method==="GET"&&path==="/api/users"){
@@ -530,7 +542,7 @@ export async function handleApi(request, env) {
       const rows=await env.DB.prepare(`SELECT u.id,u.username,u.display_name,u.bio,u.location,u.role,u.avatar_url,ap.country,ap.city
         FROM users u LEFT JOIN user_privacy up ON up.user_id=u.id LEFT JOIN account_profiles ap ON ap.user_id=u.id
         WHERE u.is_active=1 AND u.id<>? AND (u.username LIKE ? OR u.display_name LIKE ?)
-          AND COALESCE(up.profile_visibility,'public')='public'
+          AND COALESCE(up.profile_visibility,'public') IN ('public','followers')
           AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE b.blocker_id=? AND b.blocked_id=u.id)
           AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE b.blocker_id=u.id AND b.blocked_id=?)
         ORDER BY u.display_name LIMIT 20`).bind(user.id,"%"+q+"%","%"+q+"%",user.id,user.id).all();
@@ -663,6 +675,10 @@ export async function handleApi(request, env) {
       const data=await bodyJson(request),recipient=String(data.recipientId||"");
       if(!recipient||recipient===user.id)return fail("Choose another member to start a conversation.");
       const other=await env.DB.prepare("SELECT id FROM users WHERE id=? AND is_active=1").bind(recipient).first();if(!other)return fail("Member not found.",404,"not_found");
+      if(await isBlocked(env.DB,user.id,recipient))return fail("You cannot message this member.",403,"blocked");
+      const otherProfile=await userRecord(env.DB,recipient),messagePrivacy=otherProfile?.message_privacy||"everyone";
+      const following=Boolean(await env.DB.prepare("SELECT 1 FROM follows WHERE follower_id=? AND following_id=?").bind(user.id,recipient).first());
+      if(messagePrivacy==="none"||messagePrivacy==="followers"&&!following)return fail("This member only accepts messages from people they follow.",403,"messages_restricted");
       const existing=await env.DB.prepare("SELECT c.id FROM conversations c JOIN conversation_members a ON a.conversation_id=c.id AND a.user_id=? JOIN conversation_members b ON b.conversation_id=c.id AND b.user_id=? WHERE c.kind='direct' LIMIT 1").bind(user.id,recipient).first();
       if(existing)return json({conversationId:existing.id,existing:true});
       const id=randomId(),now=Math.floor(Date.now()/1000);
@@ -690,6 +706,8 @@ export async function handleApi(request, env) {
     if(messagesMatch&&method==="GET"){
       const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
       const member=await env.DB.prepare("SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?").bind(messagesMatch[1],user.id).first();if(!member)return fail("Conversation not found.",404,"not_found");
+      const blockedPeer=await env.DB.prepare("SELECT cm.user_id FROM conversation_members cm WHERE cm.conversation_id=? AND cm.user_id<>? AND EXISTS(SELECT 1 FROM user_blocks b WHERE (b.blocker_id=? AND b.blocked_id=cm.user_id) OR (b.blocker_id=cm.user_id AND b.blocked_id=?)) LIMIT 1").bind(messagesMatch[1],user.id,user.id,user.id).first();
+      if(blockedPeer)return fail("Conversation not found.",404,"not_found");
       const rows=await env.DB.prepare("SELECT m.id,m.body,m.message_type,m.media_url,m.created_at,m.sender_id,u.display_name,u.username FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.conversation_id=? AND m.deleted_at IS NULL ORDER BY m.created_at DESC LIMIT 100").bind(messagesMatch[1]).all();
       await env.DB.prepare("UPDATE conversation_members SET last_read_at=? WHERE conversation_id=? AND user_id=?").bind(Math.floor(Date.now()/1000),messagesMatch[1],user.id).run();
       return json({messages:(rows.results||[]).reverse()});
@@ -697,6 +715,8 @@ export async function handleApi(request, env) {
     if(messagesMatch&&method==="POST"){
       const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
       const member=await env.DB.prepare("SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?").bind(messagesMatch[1],user.id).first();if(!member)return fail("Conversation not found.",404,"not_found");
+      const blockedPeer=await env.DB.prepare("SELECT cm.user_id FROM conversation_members cm WHERE cm.conversation_id=? AND cm.user_id<>? AND EXISTS(SELECT 1 FROM user_blocks b WHERE (b.blocker_id=? AND b.blocked_id=cm.user_id) OR (b.blocker_id=cm.user_id AND b.blocked_id=?)) LIMIT 1").bind(messagesMatch[1],user.id,user.id,user.id).first();
+      if(blockedPeer)return fail("You cannot send messages in this conversation.",403,"blocked");
       const data=await bodyJson(request),body=String(data.body||"").trim();
       const messageType=["text","image","video","voice"].includes(data.messageType)?data.messageType:"text";
       const mediaUrl=data.mediaUrl?String(data.mediaUrl):null;
