@@ -230,6 +230,9 @@
     if(!b)return;
     const a=b.dataset.action,id=b.dataset.id;
     if(a==="create-post")createPost();
+    else if(a==="account"){if(authUser){openModal("Sign out of ELYVORA",'<p class="muted-copy">You are signed in as <b>'+safe(authUser.email)+'</b>.</p><div class="modal-footer"><button class="button-quiet" data-action="close-modal">Stay signed in</button><button class="button-primary" data-action="logout">Sign out</button></div>');}else authModal("signin");}
+    else if(a==="logout")logout();
+    else if(a==="auth-switch")authModal(b.dataset.mode);
     else if(a==="edit-profile")editProfile();
     else if(a==="close-modal")closeModal();
     else if(a==="dismiss-banner"){state.banner=false;save();setHeader();}
