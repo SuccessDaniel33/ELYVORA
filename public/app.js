@@ -149,6 +149,13 @@
       target.innerHTML=users.length?users.map(u=>'<div class="mini-row" style="padding:10px 0;border-bottom:1px solid var(--line)">'+avatar(initials(u.display_name))+'<span><b>'+safe(u.display_name)+'</b><small>@'+safe(u.username)+' · '+safe(u.location||"ELYVORA member")+'</small></span><button class="button-quiet" data-action="start-chat" data-id="'+safe(u.id)+'">Message</button></div>').join(""):'<p class="muted-copy">No members found for that search.</p>';
     }catch(error){if(target.isConnected)target.innerHTML='<p class="muted-copy">'+safe(error.message)+'</p>';}
   }
+  async function searchDiscoverMembers(query){
+    if(!authUser){remoteUsers=[];return;}
+    const q=String(query||"").trim();
+    if(q.length<2){remoteUsers=[];return;}
+    const data=await apiRequest("/api/users?q="+encodeURIComponent(q));
+    remoteUsers=data.users||[];
+  }
   function newChatModal(){
     if(!authUser){authModal("signin");return;}
     openModal("Find an ELYVORA member",'<div class="form-group"><label>SEARCH MEMBERS</label><input class="form-control" id="new-chat-search" placeholder="Search by name or username..." autocomplete="off"></div><div id="member-results" class="mini-list"><p class="muted-copy">Search for someone to start a private conversation.</p></div>',"ELYVORA CONNECT");
