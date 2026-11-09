@@ -15,6 +15,16 @@ CREATE TABLE IF NOT EXISTS conversation_members (conversation_id TEXT NOT NULL R
 CREATE INDEX IF NOT EXISTS idx_conversation_members_user ON conversation_members(user_id);
 CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,sender_id TEXT NOT NULL REFERENCES users(id),body TEXT NOT NULL,message_type TEXT NOT NULL DEFAULT 'text' CHECK (message_type IN ('text','image','video','voice')),media_url TEXT,created_at INTEGER NOT NULL,deleted_at INTEGER);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id,created_at);
+CREATE TABLE IF NOT EXISTS media_assets (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  mime_type TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  byte_length INTEGER NOT NULL,
+  data_b64 TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_media_owner ON media_assets(owner_id,created_at DESC);
 CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY,title TEXT NOT NULL,organization TEXT NOT NULL,description TEXT NOT NULL,category TEXT NOT NULL,location TEXT NOT NULL DEFAULT 'Remote',compensation_label TEXT NOT NULL DEFAULT 'See details',status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed')),created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS job_applications (id TEXT PRIMARY KEY,job_id TEXT NOT NULL REFERENCES jobs(id),user_id TEXT NOT NULL REFERENCES users(id),message TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted','reviewing','accepted','declined')),created_at INTEGER NOT NULL,UNIQUE(job_id,user_id));
 CREATE TABLE IF NOT EXISTS wallets (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,balance INTEGER NOT NULL DEFAULT 1000 CHECK (balance >= 0),updated_at INTEGER NOT NULL);
@@ -37,7 +47,7 @@ INSERT OR IGNORE INTO properties (id,name,city,country,description,price,status)
 ('lagos-studio','City studio','Lagos','Nigeria','A compact starter space in the creative district of the ELYVORA virtual city.',900,'available'),
 ('london-loft','Skyline loft','London','United Kingdom','A bright virtual home overlooking the riverside district.',1800,'available'),
 ('tokyo-retreat','Garden retreat','Tokyo','Japan','A peaceful virtual retreat in the east gardens district.',1350,'available');
-INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES (1,unixepoch());
+INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES (1,unixepoch()),(2,unixepoch());
 `;
 
 let schemaReady;
@@ -95,7 +105,7 @@ async function ensureSchema(db) {
   if (!schemaReady) {
     schemaReady = (async () => {
       const migrationTable = await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'").first();
-      const applied = migrationTable ? await db.prepare("SELECT version FROM schema_migrations WHERE version=1").first() : null;
+      const applied = migrationTable ? await db.prepare("SELECT version FROM schema_migrations WHERE version=2").first() : null;
       if (!applied) await db.exec(SCHEMA_SQL);
     })().catch(error => { schemaReady = null; throw error; });
   }
@@ -148,7 +158,40 @@ export async function handleApi(request, env) {
     const method = request.method.toUpperCase();
     if (["POST", "PUT", "PATCH", "DELETE"].includes(method) && !checkSameOrigin(request)) return fail("Cross-origin request blocked.", 403, "origin_rejected");
 
-    if (method === "GET" && path === "/api/health") return json({ ok: true, service: "elyvora-api", schemaVersion: 1, time: new Date().toISOString() });
+    if (method === "GET" && path === "/api/health") return json({ ok: true, service: "elyvora-api", schemaVersion: 2, time: new Date().toISOString() });
+
+    const mediaMatch=path.match(/^\/api\/media\/([a-f0-9-]+)$/);
+    if(method==="GET"&&mediaMatch){
+      const user=await currentUser(request,env.DB);
+      const id=mediaMatch[1],mediaUrl="/api/media/"+id;
+      const asset=await env.DB.prepare("SELECT id,owner_id,mime_type,file_name,byte_length,data_b64 FROM media_assets WHERE id=?").bind(id).first();
+      if(!asset)return fail("Media not found.",404,"not_found");
+      const publicPost=await env.DB.prepare("SELECT 1 FROM posts WHERE media_url=? AND visibility='public' AND deleted_at IS NULL LIMIT 1").bind(mediaUrl).first();
+      const conversation= user ? await env.DB.prepare("SELECT 1 FROM messages m JOIN conversation_members cm ON cm.conversation_id=m.conversation_id WHERE m.media_url=? AND cm.user_id=? LIMIT 1").bind(mediaUrl,user.id).first() : null;
+      if(asset.owner_id!==user?.id&&!publicPost&&!conversation)return fail("You do not have access to this media.",403,"forbidden");
+      const bytes=fromBase64url(asset.data_b64);
+      return new Response(bytes,{status:200,headers:{"Content-Type":asset.mime_type,"Content-Length":String(asset.byte_length),"Content-Disposition":"inline; filename*=UTF-8''"+encodeURIComponent(asset.file_name),"Cache-Control":publicPost?"public, max-age=3600":"private, no-store","X-Content-Type-Options":"nosniff"}});
+    }
+
+    if(method==="POST"&&path==="/api/media/upload"){
+      const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
+      let form;try{form=await request.formData();}catch{return fail("Upload must use multipart form data.");}
+      const file=form.get("file");
+      if(!(file instanceof File))return fail("Choose an image, video or audio file.");
+      const allowed=new Set(["image/jpeg","image/png","image/webp","image/gif","video/mp4","video/webm","video/quicktime","audio/webm","audio/ogg","audio/mp4","audio/mpeg"]);
+      if(!allowed.has(file.type))return fail("This file type is not supported.");
+      const MAX_MEDIA_BYTES=1_000_000;
+      if(file.size<1||file.size>MAX_MEDIA_BYTES)return fail("This first release supports media files up to 1 MB. Larger media needs the R2 storage upgrade.",413,"media_too_large");
+      const id=randomId(),bytes=new Uint8Array(await file.arrayBuffer()),encoded=base64url(bytes);
+      const fileName=String(file.name||"elyvora-media").replace(/[\r\n\\/]/g,"_").slice(0,100);
+      try{
+        await env.DB.prepare("INSERT INTO media_assets(id,owner_id,mime_type,file_name,byte_length,data_b64,created_at) VALUES (?,?,?,?,?,?,?)").bind(id,user.id,file.type,fileName,file.size,encoded,Math.floor(Date.now()/1000)).run();
+      }catch(error){
+        console.error("ELYVORA media upload failed:",error);
+        return fail("The media could not be stored. Please try a smaller file.",507,"media_storage_failed");
+      }
+      return json({id,url:"/api/media/"+id,mimeType:file.type,byteLength:file.size,fileName},201);
+    }
 
     if (method === "POST" && path === "/api/auth/register") {
       if (!await authRateLimit(request, env.DB)) return fail("Too many attempts. Please try again later.", 429, "rate_limited");
@@ -231,13 +274,23 @@ export async function handleApi(request, env) {
       if(!body||body.length>5000)return fail("A post must contain 1–5,000 characters.");
       let mediaUrl=null,mediaType=null;
       if(data.mediaUrl){
-        try{
-          const parsed=new URL(String(data.mediaUrl).trim());
-          if(parsed.protocol!=="https:"||parsed.username||parsed.password)return fail("Media links must be secure HTTPS URLs.");
-          mediaUrl=parsed.toString();
-          mediaType=data.mediaType==="video"?"video":"image";
-        }catch{return fail("Enter a valid HTTPS media URL.");}
-        if(mediaUrl.length>2000)return fail("Media URL is too long.");
+        const value=String(data.mediaUrl).trim();
+        if(value.startsWith("/api/media/")){
+          const match=value.match(/^\/api\/media\/([a-f0-9-]+)$/);
+          if(!match)return fail("Invalid ELYVORA media reference.");
+          const asset=await env.DB.prepare("SELECT id,owner_id,mime_type FROM media_assets WHERE id=?").bind(match[1]).first();
+          if(!asset||asset.owner_id!==user.id)return fail("Upload this media from your own account before sharing it.",403,"media_not_owned");
+          mediaUrl=value;
+          mediaType=asset.mime_type.startsWith("video/")?"video":"image";
+        }else{
+          try{
+            const parsed=new URL(value);
+            if(parsed.protocol!=="https:"||parsed.username||parsed.password)return fail("Media links must be secure HTTPS URLs.");
+            mediaUrl=parsed.toString();
+            mediaType=data.mediaType==="video"?"video":"image";
+          }catch{return fail("Enter a valid HTTPS media URL.");}
+          if(mediaUrl.length>2000)return fail("Media URL is too long.");
+        }
       }
       const id=randomId(),now=Math.floor(Date.now()/1000);
       await env.DB.prepare("INSERT INTO posts (id,user_id,body,media_url,media_type,visibility,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)").bind(id,user.id,body,mediaUrl,mediaType,visibility,now,now).run();
@@ -385,13 +438,23 @@ export async function handleApi(request, env) {
     if(messagesMatch&&method==="POST"){
       const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
       const member=await env.DB.prepare("SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?").bind(messagesMatch[1],user.id).first();if(!member)return fail("Conversation not found.",404,"not_found");
-      const data=await bodyJson(request),body=String(data.body||"").trim();if(!body||body.length>4000)return fail("A message must contain 1–4,000 characters.");
+      const data=await bodyJson(request),body=String(data.body||"").trim();
+      const messageType=["text","image","video","voice"].includes(data.messageType)?data.messageType:"text";
+      const mediaUrl=data.mediaUrl?String(data.mediaUrl):null;
+      if(messageType==="text"&&(!body||body.length>4000))return fail("A text message must contain 1–4,000 characters.");
+      if(messageType!=="text"){
+        if(!mediaUrl||!/^\/api\/media\/[a-f0-9-]+$/.test(mediaUrl))return fail("Upload the attachment before sending it.");
+        const media=await env.DB.prepare("SELECT owner_id,mime_type FROM media_assets WHERE id=?").bind(mediaUrl.split("/").pop()).first();
+        if(!media||media.owner_id!==user.id)return fail("The attachment is not available to this account.",403,"media_not_owned");
+        const expected=messageType==="image"?"image/":messageType==="video"?"video/":"audio/";
+        if(!media.mime_type.startsWith(expected))return fail("The attachment type does not match this message.");
+      }
       const id=randomId(),now=Math.floor(Date.now()/1000);
       await env.DB.batch([
-        env.DB.prepare("INSERT INTO messages(id,conversation_id,sender_id,body,created_at) VALUES (?,?,?,?,?)").bind(id,messagesMatch[1],user.id,body,now),
+        env.DB.prepare("INSERT INTO messages(id,conversation_id,sender_id,body,message_type,media_url,created_at) VALUES (?,?,?,?,?,?,?)").bind(id,messagesMatch[1],user.id,body,messageType,mediaUrl,now),
         env.DB.prepare("UPDATE conversations SET updated_at=? WHERE id=?").bind(now,messagesMatch[1])
       ]);
-      const savedMessage={id,body,sender_id:user.id,created_at:now};
+      const savedMessage={id,body,sender_id:user.id,message_type:messageType,media_url:mediaUrl,created_at:now};
       if(env.CHAT_ROOMS){
         try{
           const room=env.CHAT_ROOMS.get(env.CHAT_ROOMS.idFromName(messagesMatch[1]));
