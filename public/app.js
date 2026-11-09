@@ -436,7 +436,14 @@
     }
   });
   document.addEventListener("input",e=>{
-    if(e.target.id==="discover-search"){const pos=e.target.selectionStart;discoverQuery=e.target.value;const view=discoverView();root.innerHTML=view;const next=document.querySelector("#discover-search");next?.focus();next?.setSelectionRange(pos,pos);}
+    if(e.target.id==="discover-search"){
+      const pos=e.target.selectionStart;discoverQuery=e.target.value;root.innerHTML=discoverView();
+      const next=document.querySelector("#discover-search");next?.focus();next?.setSelectionRange(pos,pos);
+      if(discoverFilter==="People"&&authUser){
+        const query=discoverQuery;
+        searchDiscoverMembers(query).then(()=>{if(currentView==="discover"&&discoverFilter==="People"&&discoverQuery===query){const caret=document.querySelector("#discover-search")?.selectionStart??query.length;root.innerHTML=discoverView();const field=document.querySelector("#discover-search");field?.focus();field?.setSelectionRange(caret,caret);}}).catch(err=>toast(err.message,true));
+      }
+    }
     if(e.target.id==="global-search"){const value=e.target.value.trim();if(value.length>1){discoverQuery=value;go("discover");}}
     if(e.target.id==="chat-search"){const q=e.target.value.toLowerCase();document.querySelectorAll(".contact-row").forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(q));}
     if(e.target.id==="new-chat-search")searchMembers(e.target.value);
