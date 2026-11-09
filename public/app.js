@@ -110,8 +110,9 @@
     try{
       const data=await apiRequest("/api/users?q="+encodeURIComponent(q));
       if(!target.isConnected)return;
-      target.innerHTML=(data.users||[]).map(u=>'<div class="mini-row" style="padding:10px 0;border-bottom:1px solid var(--line)">'+avatar(initials(u.display_name))+'<span><b>'+safe(u.display_name)+'</b><small>@'+safe(u.username)+' · '+safe(u.location||"ELYVORA member")+'</small></span><button class="button-quiet" data-action="start-chat" data-id="'+safe(u.id)+'">Message</button></div>').join("")||(data.users||[]).length===0?'<p class="muted-copy">No members found for that search.</p>':target.innerHTML;
-    }catch(error){target.innerHTML='<p class="muted-copy">'+safe(error.message)+'</p>';}
+      const users=data.users||[];
+      target.innerHTML=users.length?users.map(u=>'<div class="mini-row" style="padding:10px 0;border-bottom:1px solid var(--line)">'+avatar(initials(u.display_name))+'<span><b>'+safe(u.display_name)+'</b><small>@'+safe(u.username)+' · '+safe(u.location||"ELYVORA member")+'</small></span><button class="button-quiet" data-action="start-chat" data-id="'+safe(u.id)+'">Message</button></div>').join(""):'<p class="muted-copy">No members found for that search.</p>';
+    }catch(error){if(target.isConnected)target.innerHTML='<p class="muted-copy">'+safe(error.message)+'</p>';}
   }
   function newChatModal(){
     if(!authUser){authModal("signin");return;}
