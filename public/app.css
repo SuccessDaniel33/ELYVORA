@@ -244,3 +244,37 @@ body{background:radial-gradient(ellipse at 78% -8%,rgba(183,211,152,.34),transpa
  #local-video{width:82px;height:108px}
  .chat-attachment-image,.chat-attachment-video{max-width:240px}
 }
+
+/* My Life dashboard */
+.life-profile-card{overflow:hidden}
+.life-profile-art{height:115px;background:linear-gradient(120deg,rgba(28,104,68,.25),rgba(173,209,148,.2)),url('/city-map.svg') center 58%/cover}
+.life-profile-body{display:flex;align-items:center;gap:13px;padding:0 19px 17px}
+.life-profile-body>.avatar{width:58px;height:58px;border-radius:17px;margin-top:-25px;border:4px solid #fffef9;position:relative}
+.life-profile-body>div{flex:1;min-width:0;padding-top:11px}
+.life-profile-body .eyebrow{margin:0 0 4px;font-size:8px}
+.life-profile-body h2{margin:0;color:#244532;font:700 17px Manrope}
+.life-profile-body p:not(.eyebrow){margin:4px 0 0;color:#7c8e80;font-size:9px}
+.needs-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 22px}
+.need-card{min-width:0}
+.need-heading{display:flex;justify-content:space-between;align-items:center;color:#3d5b48;font-size:10px;font-weight:700;margin-bottom:7px}
+.need-heading b{color:#37885e;font-size:10px}
+.need-track{height:8px;background:#e7ede3;border-radius:20px;overflow:hidden}
+.need-track span{display:block;height:100%;border-radius:20px;background:linear-gradient(90deg,#6bb67d,#a9cb75)}
+.need-card small{display:block;margin-top:6px;color:#89978c;font-size:9px;line-height:1.5}
+.life-action-card{padding:16px;text-align:left;border-radius:14px;cursor:pointer;transition:.18s}
+.life-action-card:hover{transform:translateY(-2px);border-color:#9bc6a6;background:#f7fbf3}
+.life-action-card>span{font-size:23px;color:#2d9165}
+.life-action-card b{display:block;margin-top:10px;color:#31533c;font:700 11px Manrope}
+.life-action-card small{display:block;margin-top:4px;color:#829185;font-size:9px}
+.life-link-row{display:flex;align-items:flex-start;gap:10px;padding:12px 0}
+.life-link-row>div{flex:1;min-width:0}
+.life-link-row b,.life-link-row small{display:block}
+.life-link-row b{color:#31513b;font-size:10px}
+.life-link-row small{margin:4px 0 7px;color:#89988c;font-size:9px;line-height:1.5}
+.life-link-row .subtle-link{font-size:9px}
+@media(max-width:650px){
+ .needs-grid{gap:14px}
+ .life-profile-body{padding-left:13px;padding-right:13px;flex-wrap:wrap}
+ .life-profile-body .tag{margin-left:68px}
+ .life-action-card{padding:12px}
+}
