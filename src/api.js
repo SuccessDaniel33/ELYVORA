@@ -545,13 +545,14 @@ export async function handleApi(request, env) {
       const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
       const q=String(url.searchParams.get("q")||"").trim().toLowerCase();if(q.length<2)return json({users:[]});
       const rows=await env.DB.prepare(`SELECT u.id,u.username,u.display_name,u.bio,u.location,u.role,u.avatar_url,ap.country,ap.city,
-        EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=? AND f.following_id=u.id) AS is_following
+        EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=? AND f.following_id=u.id) AS is_following,
+        CASE WHEN COALESCE(up.show_online,1)=1 AND EXISTS(SELECT 1 FROM sessions s WHERE s.user_id=u.id AND s.expires_at>? AND s.last_seen_at>?) THEN 1 ELSE 0 END AS is_online
         FROM users u LEFT JOIN user_privacy up ON up.user_id=u.id LEFT JOIN account_profiles ap ON ap.user_id=u.id
         WHERE u.is_active=1 AND u.id<>? AND (u.username LIKE ? OR u.display_name LIKE ?)
           AND COALESCE(up.profile_visibility,'public') IN ('public','followers')
           AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE b.blocker_id=? AND b.blocked_id=u.id)
           AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE b.blocker_id=u.id AND b.blocked_id=?)
-        ORDER BY u.display_name LIMIT 20`).bind(user.id,user.id,"%"+q+"%","%"+q+"%",user.id,user.id).all();
+        ORDER BY u.display_name LIMIT 20`).bind(user.id,Math.floor(Date.now()/1000),Math.floor(Date.now()/1000)-300,user.id,"%"+q+"%","%"+q+"%",user.id,user.id).all();
       return json({users:rows.results||[]});
     }
 
@@ -575,11 +576,13 @@ export async function handleApi(request, env) {
           ORDER BY p.created_at DESC LIMIT 30`).bind(viewer?.id||"",target.id,owner?1:0,viewer?.id||"").all();
         posts=rows.results||[];
       }
-      const [followers,following]=await Promise.all([
+      const [followers,following,presence]=await Promise.all([
         env.DB.prepare("SELECT COUNT(*) AS n FROM follows WHERE following_id=?").bind(target.id).first(),
-        env.DB.prepare("SELECT COUNT(*) AS n FROM follows WHERE follower_id=?").bind(target.id).first()
+        env.DB.prepare("SELECT COUNT(*) AS n FROM follows WHERE follower_id=?").bind(target.id).first(),
+        env.DB.prepare("SELECT MAX(last_seen_at) AS last_seen_at FROM sessions WHERE user_id=? AND expires_at>?").bind(target.id,Math.floor(Date.now()/1000)).first()
       ]);
-      return json({profile:{...publicUser(target),privacy,followers:Number(followers?.n||0),following:Number(following?.n||0),
+      const isOnline=privacy.showOnline&&presence?.last_seen_at&&Math.floor(Date.now()/1000)-Number(presence.last_seen_at)<300;
+      return json({profile:{...publicUser(target),privacy,isOnline:Boolean(isOnline),followers:Number(followers?.n||0),following:Number(following?.n||0),
         isFollowing:follows,isSelf:owner,posts,communities:[]}});
     }
 
@@ -671,9 +674,14 @@ export async function handleApi(request, env) {
         (SELECT m.created_at FROM messages m WHERE m.conversation_id=c.id AND m.deleted_at IS NULL ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
         (SELECT u.id FROM conversation_members cm2 JOIN users u ON u.id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_user_id,
         (SELECT u.display_name FROM conversation_members cm2 JOIN users u ON u.id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_user_name,
-        (SELECT u.username FROM conversation_members cm2 JOIN users u ON u.id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_username
+        (SELECT u.username FROM conversation_members cm2 JOIN users u ON u.id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_username,
+        (SELECT cm2.last_read_at FROM conversation_members cm2 WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_last_read_at
         FROM conversations c JOIN conversation_members cm ON cm.conversation_id=c.id
-        WHERE cm.user_id=? ORDER BY COALESCE(last_message_at,c.updated_at) DESC LIMIT 50`).bind(user.id,user.id,user.id,user.id).all();
+        WHERE cm.user_id=? AND NOT EXISTS(
+          SELECT 1 FROM conversation_members cp WHERE cp.conversation_id=c.id AND cp.user_id<>? AND EXISTS(
+            SELECT 1 FROM user_blocks b WHERE (b.blocker_id=? AND b.blocked_id=cp.user_id) OR (b.blocker_id=cp.user_id AND b.blocked_id=?)
+          )
+        ) ORDER BY COALESCE(last_message_at,c.updated_at) DESC LIMIT 50`).bind(user.id,user.id,user.id,user.id,user.id,user.id,user.id).all();
       return json({conversations:rows.results||[]});
     }
     if(method==="POST"&&path==="/api/conversations"){
