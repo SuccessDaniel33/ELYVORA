@@ -113,6 +113,8 @@
         const data=JSON.parse(event.data);
         if(data.type==="message"&&activeConversationId===conversationId){
           refreshMessages(conversationId).then(()=>{if(currentView==="messages")render();}).catch(error=>console.warn("Could not refresh live chat:",error));
+        }else if(data.type&&data.type.startsWith("call-")){
+          handleCallSignal(data).catch(error=>console.warn("ELYVORA call signal error:",error));
         }
       }catch{}
     });
