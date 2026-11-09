@@ -662,11 +662,21 @@
         .then(()=>refreshFeed()).then(()=>openComments(postId)).catch(err=>toast(err.message,true));
     }else if(e.target.id==="post-form"){
       e.preventDefault();const fd=new FormData(e.target),text=(fd.get("text")||"").trim();if(!text)return;
-      const mediaUrl=String(fd.get("mediaUrl")||"").trim(),mediaType=fd.get("mediaType")==="video"?"video":"image";
+      let mediaUrl=String(fd.get("mediaUrl")||"").trim();
+      const file=fd.get("mediaFile"),hasFile=file instanceof File&&file.size>0;
+      let mediaType=fd.get("mediaType")==="video"?"video":"image";
+      if(mediaUrl&&hasFile){toast("Choose either an uploaded file or a media URL, not both.",true);return;}
       if(mediaUrl){try{const parsed=new URL(mediaUrl);if(parsed.protocol!=="https:"){toast("Media links must use HTTPS.",true);return;}}catch{toast("Enter a valid media URL.",true);return;}}
+      if(hasFile&&file.size>1_000_000){toast("This first release supports media files up to 1 MB.",true);return;}
       if(authUser){
-        apiRequest("/api/posts",{method:"POST",body:JSON.stringify({body:text,visibility:"public",mediaUrl:mediaUrl||null,mediaType})}).then(refreshFeed).then(()=>{closeModal();go(currentView==="profile"?"profile":"home");toast("Your post is now published on ELYVORA.");}).catch(err=>toast(err.message,true));
+        const publish=async()=>{
+          if(hasFile){const uploaded=await uploadMediaFile(file);mediaUrl=uploaded.url;mediaType=file.type.startsWith("video/")?"video":"image";}
+          await apiRequest("/api/posts",{method:"POST",body:JSON.stringify({body:text,visibility:"public",mediaUrl:mediaUrl||null,mediaType})});
+          await refreshFeed();
+        };
+        publish().then(()=>{closeModal();go(currentView==="profile"?"profile":"home");toast("Your post is now published on ELYVORA.");}).catch(err=>toast(err.message,true));
       }else{
+        if(hasFile){mediaUrl=URL.createObjectURL(file);mediaType=file.type.startsWith("video/")?"video":"image";}
         state.posts.unshift({id:"p"+Date.now(),name:state.profile.name,handle:"@"+state.profile.handle,time:"Just now",text,art:mediaUrl?"none":fd.get("art"),image:mediaUrl,mediaType:mediaUrl?mediaType:null,likes:0,comments:0,liked:false});
         save();closeModal();go(currentView==="profile"?"profile":"home");toast("Your post is saved in this device's demo feed. Sign in to publish globally.");
       }
