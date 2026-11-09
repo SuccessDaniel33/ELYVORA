@@ -679,13 +679,14 @@ export async function handleApi(request, env) {
         (SELECT u.id FROM conversation_members cm2 JOIN users u ON u.id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_user_id,
         (SELECT u.display_name FROM conversation_members cm2 JOIN users u ON u.id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_user_name,
         (SELECT u.username FROM conversation_members cm2 JOIN users u ON u.id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_username,
+        (SELECT u.avatar_url FROM conversation_members cm2 JOIN users u ON u.id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_avatar_url,
         (SELECT CASE WHEN COALESCE(up.read_receipts,1)=1 THEN cm2.last_read_at ELSE NULL END FROM conversation_members cm2 LEFT JOIN user_privacy up ON up.user_id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_last_read_at
         FROM conversations c JOIN conversation_members cm ON cm.conversation_id=c.id
         WHERE cm.user_id=? AND NOT EXISTS(
           SELECT 1 FROM conversation_members cp WHERE cp.conversation_id=c.id AND cp.user_id<>? AND EXISTS(
             SELECT 1 FROM user_blocks b WHERE (b.blocker_id=? AND b.blocked_id=cp.user_id) OR (b.blocker_id=cp.user_id AND b.blocked_id=?)
           )
-        ) ORDER BY COALESCE(last_message_at,c.updated_at) DESC LIMIT 50`).bind(user.id,user.id,user.id,user.id,user.id,user.id,user.id,user.id).all();
+        ) ORDER BY COALESCE(last_message_at,c.updated_at) DESC LIMIT 50`).bind(user.id,user.id,user.id,user.id,user.id,user.id,user.id,user.id,user.id).all();
       return json({conversations:rows.results||[]});
     }
     if(method==="POST"&&path==="/api/conversations"){
