@@ -385,7 +385,11 @@
     else if(a==="voice-note")toast("Voice notes need microphone capture and secure media storage. They are on the communication roadmap.");
     else if(a==="voice-call")toast("Audio calling is planned. Live calls need the real-time calling service and user permissions.");
     else if(a==="video-call")toast("Video calling is planned. Live calls need the real-time calling service and user permissions.");
-    else if(a==="notifications")toast("You're all caught up. Notifications will appear here.");
+    else if(a==="notifications")openNotifications();
+    else if(a==="mark-notification"){
+      if(!authUser)return;
+      apiRequest("/api/notifications/"+encodeURIComponent(id)+"/read",{method:"POST",body:"{}"}).then(openNotifications).catch(err=>toast(err.message,true));
+    }
     else if(a==="new-chat")newChatModal();
     else if(a==="start-chat")beginConversation(id);
     else if(a==="explore-item")toast("Opening "+b.dataset.name+" — discovery details are being built.");
