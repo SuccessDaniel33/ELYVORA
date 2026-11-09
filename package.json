@@ -6,7 +6,7 @@
   "description": "ELYVORA global social world platform",
   "scripts": {
     "dev": "wrangler dev",
-    "check": "node --check public/app.js && node --check src/api.js && node --check src/index.js",
+    "check": "node --check public/app.js && node --check src/api.js && node --check src/chat-room.js && node --check src/index.js",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {
