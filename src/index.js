@@ -1,3 +1,5 @@
+export { ChatRoom } from "./chat-room.js";
+
 /**
  * ELYVORA Cloudflare Worker.
  * API routes are handled by the Worker; the application shell is served
