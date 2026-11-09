@@ -178,19 +178,20 @@ export async function handleApi(request, env) {
       let form;try{form=await request.formData();}catch{return fail("Upload must use multipart form data.");}
       const file=form.get("file");
       if(!(file instanceof File))return fail("Choose an image, video or audio file.");
-      const allowed=new Set(["image/jpeg","image/png","image/webp","image/gif","video/mp4","video/webm","video/quicktime","audio/webm","audio/ogg","audio/mp4","audio/mpeg"]);
-      if(!allowed.has(file.type))return fail("This file type is not supported.");
+      const mimeType=String(file.type||"").split(";")[0].toLowerCase();
+      const allowed=new Set(["image/jpeg","image/png","image/webp","image/gif","image/avif","video/mp4","video/webm","video/quicktime","audio/webm","audio/ogg","audio/mp4","audio/mpeg"]);
+      if(!allowed.has(mimeType))return fail("This file type is not supported.");
       const MAX_MEDIA_BYTES=1_000_000;
       if(file.size<1||file.size>MAX_MEDIA_BYTES)return fail("This first release supports media files up to 1 MB. Larger media needs the R2 storage upgrade.",413,"media_too_large");
       const id=randomId(),bytes=new Uint8Array(await file.arrayBuffer()),encoded=base64url(bytes);
       const fileName=String(file.name||"elyvora-media").replace(/[\r\n\\/]/g,"_").slice(0,100);
       try{
-        await env.DB.prepare("INSERT INTO media_assets(id,owner_id,mime_type,file_name,byte_length,data_b64,created_at) VALUES (?,?,?,?,?,?,?)").bind(id,user.id,file.type,fileName,file.size,encoded,Math.floor(Date.now()/1000)).run();
+        await env.DB.prepare("INSERT INTO media_assets(id,owner_id,mime_type,file_name,byte_length,data_b64,created_at) VALUES (?,?,?,?,?,?,?)").bind(id,user.id,mimeType,fileName,file.size,encoded,Math.floor(Date.now()/1000)).run();
       }catch(error){
         console.error("ELYVORA media upload failed:",error);
         return fail("The media could not be stored. Please try a smaller file.",507,"media_storage_failed");
       }
-      return json({id,url:"/api/media/"+id,mimeType:file.type,byteLength:file.size,fileName},201);
+      return json({id,url:"/api/media/"+id,mimeType,byteLength:file.size,fileName},201);
     }
 
     if (method === "POST" && path === "/api/auth/register") {
