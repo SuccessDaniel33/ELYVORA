@@ -20,6 +20,18 @@ The app combines a social feed and private messaging with a city/world interface
 - Persistent simulated wallet, transaction ledger and virtual property acquisitions
 - GitHub-triggered Cloudflare Workers Builds from the `main` branch
 
+## Accounts, profiles and privacy
+
+- Registration collects a full name, unique username, email, password and country; city is optional.
+- Passwords are PBKDF2-derived with per-user random salts. Sessions use opaque random tokens stored as SHA-256 hashes and delivered in HttpOnly, SameSite cookies.
+- Members can manage their biography, username, country, city, interests, profile photo and cover image.
+- Account privacy controls cover profile visibility, content visibility, message access, comments, online-status visibility and read receipts.
+- Follow/unfollow, public profile pages, reporting, blocking and blocked-member management are available.
+- Profile photos and cover images use the current private media upload path and are limited to 1 MB each while R2 is unavailable.
+- Email verification and password recovery use one-time hashed tokens. To enable actual email delivery, configure the Cloudflare Worker environment with a Resend API secret named `RESEND_API_KEY` and a verified sender address named `EMAIL_FROM`. Without those values, account registration and sign-in still work, but verification and password-reset emails cannot be delivered.
+
+The account/privacy schema is version 3 and is included in `migrations/0003_accounts_privacy.sql`. Existing user rows are preserved and receive default profile/privacy records through idempotent migrations.
+
 ## Media storage limits
 
 R2 is not currently enabled on the connected Cloudflare account. Until it is activated, this release uses a bounded D1-backed media store for small files:
