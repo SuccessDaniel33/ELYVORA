@@ -259,7 +259,8 @@ export async function handleApi(request, env) {
       if(!asset)return fail("Media not found.",404,"not_found");
       const publicPost=await env.DB.prepare("SELECT 1 FROM posts WHERE media_url=? AND visibility='public' AND deleted_at IS NULL LIMIT 1").bind(mediaUrl).first();
       const conversation= user ? await env.DB.prepare("SELECT 1 FROM messages m JOIN conversation_members cm ON cm.conversation_id=m.conversation_id WHERE m.media_url=? AND cm.user_id=? LIMIT 1").bind(mediaUrl,user.id).first() : null;
-      if(asset.owner_id!==user?.id&&!publicPost&&!conversation)return fail("You do not have access to this media.",403,"forbidden");
+      const publicProfile=await env.DB.prepare("SELECT 1 FROM users u JOIN user_privacy up ON up.user_id=u.id WHERE (u.avatar_url=? OR EXISTS(SELECT 1 FROM account_profiles ap WHERE ap.user_id=u.id AND ap.cover_image_url=?)) AND up.profile_visibility='public' LIMIT 1").bind(mediaUrl,mediaUrl).first();
+      if(asset.owner_id!==user?.id&&!publicPost&&!conversation&&!publicProfile)return fail("You do not have access to this media.",403,"forbidden");
       const bytes=fromBase64url(asset.data_b64);
       return new Response(bytes,{status:200,headers:{"Content-Type":asset.mime_type,"Content-Length":String(asset.byte_length),"Content-Disposition":"inline; filename*=UTF-8''"+encodeURIComponent(asset.file_name),"Cache-Control":publicPost?"public, max-age=3600":"private, no-store","X-Content-Type-Options":"nosniff"}});
     }
@@ -291,10 +292,14 @@ export async function handleApi(request, env) {
       const email = String(data.email || "").trim().toLowerCase();
       const username = String(data.username || "").trim().replace(/^@/, "").toLowerCase();
       const displayName = String(data.displayName || "").trim();
+      const country = String(data.country || "").trim();
+      const city = String(data.city || "").trim();
       const password = String(data.password || "");
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return fail("Enter a valid email address.");
       if (!/^[a-z0-9_.]{3,24}$/.test(username)) return fail("Username must be 3–24 characters using letters, numbers, underscores or dots.");
-      if (displayName.length < 2 || displayName.length > 50) return fail("Your display name must be 2–50 characters.");
+      if (displayName.length < 2 || displayName.length > 50) return fail("Your full name must be 2–50 characters.");
+      if (country.length < 2 || country.length > 80) return fail("Choose your country to complete registration.");
+      if (city.length > 80) return fail("Your city must be 80 characters or fewer.");
       if (password.length < 10 || password.length > 128) return fail("Use a password with at least 10 characters.");
       const id = randomId(), now = Math.floor(Date.now()/1000), salt = base64url(crypto.getRandomValues(new Uint8Array(16)));
       const hash = await passwordHash(password, salt);
@@ -302,7 +307,9 @@ export async function handleApi(request, env) {
         await env.DB.batch([
           env.DB.prepare("INSERT INTO users (id,email,username,display_name,password_hash,password_salt,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)").bind(id,email,username,displayName,hash,salt,now,now),
           env.DB.prepare("INSERT INTO wallets (user_id,balance,updated_at) VALUES (?,1000,?)").bind(id,now),
-          env.DB.prepare("INSERT INTO transactions (id,user_id,kind,amount,description,reference_type,created_at) VALUES (?,?, 'credit',1000,'Welcome credits','welcome',?)").bind(randomId(),id,now)
+          env.DB.prepare("INSERT INTO transactions (id,user_id,kind,amount,description,reference_type,created_at) VALUES (?,?, 'credit',1000,'Welcome credits','welcome',?)").bind(randomId(),id,now),
+          env.DB.prepare("INSERT INTO account_profiles(user_id,country,city,interests_json,updated_at) VALUES (?,?,?,'[]',?)").bind(id,country,city,now),
+          env.DB.prepare("INSERT INTO user_privacy(user_id,updated_at) VALUES (?,?)").bind(id,now)
         ]);
       } catch (error) {
         const message = String(error?.message || "");
@@ -310,8 +317,15 @@ export async function handleApi(request, env) {
         throw error;
       }
       const cookie = await createSession(env.DB,id,request);
-      const user = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(id).first();
-      return json({ user: publicUser(user), wallet: { balance: 1000 } }, 201, { "Set-Cookie": cookie });
+      let verificationSent=false;
+      if(env.RESEND_API_KEY&&env.EMAIL_FROM){
+        const token=await emailToken(env.DB,id,"verify_email",86400);
+        const verifyUrl=new URL("/",request.url);verifyUrl.searchParams.set("verify",token);
+        verificationSent=await sendAccountEmail(env,email,"Verify your ELYVORA email",
+          '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#17212b"><h1>Welcome to ELYVORA</h1><p>Confirm your email address to help secure your account.</p><p><a href="'+escapeHtml(verifyUrl.toString())+'" style="display:inline-block;padding:12px 18px;background:#4e79d4;color:#fff;border-radius:8px;text-decoration:none">Verify email address</a></p><p>This link expires in 24 hours. If you did not create this account, you can ignore this email.</p></div>');
+      }
+      const user=await userRecord(env.DB,id);
+      return json({user:publicUser(user),wallet:{balance:1000},verificationSent},201,{"Set-Cookie":cookie});
     }
 
     if (method === "POST" && path === "/api/auth/login") {
@@ -321,7 +335,8 @@ export async function handleApi(request, env) {
       const user = await env.DB.prepare("SELECT * FROM users WHERE email=? OR username=?").bind(identifier,identifier).first();
       if (!user || !constantEqual(await passwordHash(password,user.password_salt),user.password_hash)) return fail("Your sign-in details do not match.", 401, "invalid_credentials");
       const cookie = await createSession(env.DB,user.id,request);
-      return json({ user: publicUser(user) },200,{"Set-Cookie":cookie});
+      const profile=await userRecord(env.DB,user.id);
+      return json({user:publicUser(profile)},200,{"Set-Cookie":cookie});
     }
 
     if (method === "POST" && path === "/api/auth/logout") {
@@ -330,33 +345,127 @@ export async function handleApi(request, env) {
       return json({ ok:true },200,{"Set-Cookie":sessionCookie("",request,true)});
     }
 
+    if (method === "POST" && path === "/api/auth/password/forgot") {
+      if (!await authRateLimit(request,env.DB)) return fail("Too many attempts. Please try again later.",429,"rate_limited");
+      const data=await bodyJson(request),email=String(data.email||"").trim().toLowerCase();
+      if(email&&email.length<=254&&env.RESEND_API_KEY&&env.EMAIL_FROM){
+        const found=await env.DB.prepare("SELECT id,email FROM users WHERE email=? AND is_active=1").bind(email).first();
+        if(found){
+          const token=await emailToken(env.DB,found.id,"reset_password",3600);
+          const resetUrl=new URL("/",request.url);resetUrl.searchParams.set("reset",token);
+          await sendAccountEmail(env,found.email,"Reset your ELYVORA password",
+            '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#17212b"><h1>Password reset</h1><p>We received a request to reset your ELYVORA password.</p><p><a href="'+escapeHtml(resetUrl.toString())+'" style="display:inline-block;padding:12px 18px;background:#4e79d4;color:#fff;border-radius:8px;text-decoration:none">Choose a new password</a></p><p>This link expires in one hour. If you did not request a reset, ignore this email.</p></div>');
+        }
+      }
+      return json({sent:true,deliveryConfigured:Boolean(env.RESEND_API_KEY&&env.EMAIL_FROM),
+        message:"If an account matches that address and email delivery is configured, password reset instructions will be sent."});
+    }
+
+    if (method === "POST" && path === "/api/auth/password/reset") {
+      const data=await bodyJson(request),token=String(data.token||""),password=String(data.password||"");
+      if(token.length<30||token.length>100)return fail("This password reset link is invalid or expired.",400,"invalid_token");
+      if(password.length<10||password.length>128)return fail("Use a new password with at least 10 characters.");
+      const tokenHash=await digest(token),now=Math.floor(Date.now()/1000);
+      const record=await env.DB.prepare("SELECT id,user_id FROM email_tokens WHERE token_hash=? AND purpose='reset_password' AND used_at IS NULL AND expires_at>?").bind(tokenHash,now).first();
+      if(!record)return fail("This password reset link is invalid or expired.",400,"invalid_token");
+      const salt=base64url(crypto.getRandomValues(new Uint8Array(16))),hash=await passwordHash(password,salt);
+      await env.DB.batch([
+        env.DB.prepare("UPDATE users SET password_hash=?,password_salt=?,updated_at=? WHERE id=?").bind(hash,salt,now,record.user_id),
+        env.DB.prepare("UPDATE email_tokens SET used_at=? WHERE id=?").bind(now,record.id),
+        env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(record.user_id),
+        env.DB.prepare("UPDATE email_tokens SET used_at=? WHERE user_id=? AND purpose='reset_password' AND used_at IS NULL").bind(now,record.user_id)
+      ]);
+      return json({reset:true,message:"Your password has been updated. Sign in with your new password."});
+    }
+
+    if (method === "POST" && path === "/api/auth/verify-email") {
+      const data=await bodyJson(request),token=String(data.token||"");
+      if(token.length<30||token.length>100)return fail("This verification link is invalid or expired.",400,"invalid_token");
+      const now=Math.floor(Date.now()/1000),record=await env.DB.prepare("SELECT id,user_id FROM email_tokens WHERE token_hash=? AND purpose='verify_email' AND used_at IS NULL AND expires_at>?").bind(await digest(token),now).first();
+      if(!record)return fail("This verification link is invalid or expired.",400,"invalid_token");
+      await env.DB.batch([
+        env.DB.prepare("UPDATE account_profiles SET email_verified_at=?,updated_at=? WHERE user_id=?").bind(now,now,record.user_id),
+        env.DB.prepare("UPDATE email_tokens SET used_at=? WHERE id=?").bind(now,record.id)
+      ]);
+      return json({verified:true});
+    }
+
+    if (method === "POST" && path === "/api/auth/verification/resend") {
+      const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
+      if(!env.RESEND_API_KEY||!env.EMAIL_FROM)return fail("Email delivery is not configured yet. Verification becomes available when ELYVORA's email service is connected.",503,"email_unavailable");
+      const profile=await userRecord(env.DB,user.id);if(profile?.email_verified_at)return json({sent:false,verified:true});
+      const token=await emailToken(env.DB,user.id,"verify_email",86400),verifyUrl=new URL("/",request.url);verifyUrl.searchParams.set("verify",token);
+      const sent=await sendAccountEmail(env,user.email,"Verify your ELYVORA email",
+        '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#17212b"><h1>Verify your email</h1><p>Confirm your email address for ELYVORA.</p><p><a href="'+escapeHtml(verifyUrl.toString())+'" style="display:inline-block;padding:12px 18px;background:#4e79d4;color:#fff;border-radius:8px;text-decoration:none">Verify email address</a></p><p>This link expires in 24 hours.</p></div>');
+      if(!sent)return fail("We could not send the verification email. Please try again later.",502,"email_delivery_failed");
+      return json({sent:true});
+    }
+
     if (method === "GET" && path === "/api/me") {
       const user = await currentUser(request,env.DB);
-      return user ? json({user:publicUser(user)}) : json({user:null});
+      return user ? json({user:publicUser(await userRecord(env.DB,user.id))}) : json({user:null});
     }
 
     if (method === "POST" && path === "/api/profile") {
-      const user = await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
-      const data=await bodyJson(request),displayName=String(data.displayName||"").trim(),username=String(data.username||"").trim().replace(/^@/,"").toLowerCase(),bio=String(data.bio||"").trim(),location=String(data.location||"").trim(),role=String(data.role||"").trim();
-      if(displayName.length<2||displayName.length>50)return fail("Your display name must be 2–50 characters.");
+      const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
+      const data=await bodyJson(request),displayName=String(data.displayName||"").trim(),username=String(data.username||"").trim().replace(/^@/,"").toLowerCase(),
+        bio=String(data.bio||"").trim(),location=String(data.location||"").trim(),role=String(data.role||"").trim(),
+        country=String(data.country||"").trim(),city=String(data.city||"").trim(),
+        avatarUrl=data.avatarUrl===null?null:String(data.avatarUrl??user.avatar_url??"").trim()||null,
+        coverImageUrl=data.coverImageUrl===null?null:String(data.coverImageUrl??"").trim()||null;
+      const interests=Array.isArray(data.interests)?[...new Set(data.interests.map(x=>String(x).trim()).filter(Boolean))].slice(0,20):[];
+      if(displayName.length<2||displayName.length>50)return fail("Your full name must be 2–50 characters.");
       if(!/^[a-z0-9_.]{3,24}$/.test(username))return fail("Username must be 3–24 characters using letters, numbers, underscores or dots.");
-      if(bio.length>220||location.length>80||role.length>80)return fail("One or more profile fields are too long.");
-      try{await env.DB.prepare("UPDATE users SET display_name=?,username=?,bio=?,location=?,role=?,updated_at=? WHERE id=?").bind(displayName,username,bio,location,role,Math.floor(Date.now()/1000),user.id).run();}
-      catch(error){if(String(error?.message||"").includes("UNIQUE"))return fail("That username is already in use.",409,"username_exists");throw error;}
-      const updated=await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(user.id).first();
-      return json({user:publicUser(updated)});
+      if(bio.length>220||location.length>80||role.length>80||country.length>80||city.length>80||interests.some(x=>x.length>32))return fail("One or more profile fields are too long.");
+      for(const mediaUrl of [avatarUrl,coverImageUrl]){
+        if(!mediaUrl)continue;
+        const match=mediaUrl.match(/^\/api\/media\/([a-f0-9-]+)$/);
+        if(!match)return fail("Profile photos must be uploaded to ELYVORA before they can be saved.");
+        const asset=await env.DB.prepare("SELECT owner_id,mime_type FROM media_assets WHERE id=?").bind(match[1]).first();
+        if(!asset||asset.owner_id!==user.id||!asset.mime_type.startsWith("image/"))return fail("Choose an image uploaded from your own account.",403,"media_not_owned");
+      }
+      const now=Math.floor(Date.now()/1000);
+      try{
+        await env.DB.batch([
+          env.DB.prepare("UPDATE users SET display_name=?,username=?,bio=?,location=?,role=?,avatar_url=?,updated_at=? WHERE id=?").bind(displayName,username,bio,location,role,avatarUrl,now,user.id),
+          env.DB.prepare("INSERT INTO account_profiles(user_id,country,city,cover_image_url,interests_json,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET country=excluded.country,city=excluded.city,cover_image_url=excluded.cover_image_url,interests_json=excluded.interests_json,updated_at=excluded.updated_at").bind(user.id,country,city,coverImageUrl,JSON.stringify(interests),now)
+        ]);
+      }catch(error){if(String(error?.message||"").includes("UNIQUE"))return fail("That username is already in use.",409,"username_exists");throw error;}
+      return json({user:publicUser(await userRecord(env.DB,user.id))});
+    }
+
+    if(method==="GET"&&path==="/api/privacy"){
+      const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
+      const row=await env.DB.prepare("SELECT * FROM user_privacy WHERE user_id=?").bind(user.id).first();
+      return json({privacy:publicPrivacy(row)});
+    }
+    if(method==="POST"&&path==="/api/privacy"){
+      const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
+      const data=await bodyJson(request),profileVisibility=String(data.profileVisibility||"public"),contentVisibility=String(data.contentVisibility||"public"),
+        messagePrivacy=String(data.messagePrivacy||"everyone"),commentPrivacy=String(data.commentPrivacy||"everyone"),
+        showOnline=data.showOnline===false?0:1,readReceipts=data.readReceipts===false?0:1;
+      if(!["public","followers","private"].includes(profileVisibility)||!["public","followers","private"].includes(contentVisibility)||!["everyone","followers","none"].includes(messagePrivacy)||!["everyone","followers","none"].includes(commentPrivacy))return fail("Choose valid privacy settings.");
+      await env.DB.prepare("INSERT INTO user_privacy(user_id,profile_visibility,content_visibility,message_privacy,comment_privacy,show_online,read_receipts,updated_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET profile_visibility=excluded.profile_visibility,content_visibility=excluded.content_visibility,message_privacy=excluded.message_privacy,comment_privacy=excluded.comment_privacy,show_online=excluded.show_online,read_receipts=excluded.read_receipts,updated_at=excluded.updated_at")
+        .bind(user.id,profileVisibility,contentVisibility,messagePrivacy,commentPrivacy,showOnline,readReceipts,Math.floor(Date.now()/1000)).run();
+      return json({privacy:publicPrivacy(await env.DB.prepare("SELECT * FROM user_privacy WHERE user_id=?").bind(user.id).first())});
     }
 
     if (method === "GET" && path === "/api/feed") {
-      const user = await currentUser(request,env.DB);
-      const limit = Math.min(50,Math.max(1,Number(url.searchParams.get("limit")||20)));
-      const rows = await env.DB.prepare(`SELECT p.id,p.body,p.media_url,p.media_type,p.visibility,p.created_at,u.id AS user_id,u.display_name,u.username,u.avatar_url,
+      const user=await currentUser(request,env.DB),viewerId=user?.id||"",limit=Math.min(50,Math.max(1,Number(url.searchParams.get("limit")||20)));
+      const rows=await env.DB.prepare(`SELECT p.id,p.body,p.media_url,p.media_type,p.visibility,p.created_at,u.id AS user_id,u.display_name,u.username,u.avatar_url,
         (SELECT COUNT(*) FROM post_likes l WHERE l.post_id=p.id) AS likes,
         (SELECT COUNT(*) FROM comments c WHERE c.post_id=p.id AND c.deleted_at IS NULL) AS comments,
         EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=?) AS liked
-        FROM posts p JOIN users u ON u.id=p.user_id
-        WHERE p.deleted_at IS NULL AND (p.visibility='public' OR p.user_id=? OR EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=? AND f.following_id=p.user_id))
-        ORDER BY p.created_at DESC LIMIT ?`).bind(user?.id||"",user?.id||"",user?.id||"",limit).all();
+        FROM posts p JOIN users u ON u.id=p.user_id LEFT JOIN user_privacy up ON up.user_id=p.user_id
+        WHERE p.deleted_at IS NULL
+          AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE b.blocker_id=? AND b.blocked_id=p.user_id)
+          AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE b.blocker_id=p.user_id AND b.blocked_id=?)
+          AND (p.user_id=? OR
+            (COALESCE(up.profile_visibility,'public')='public' AND COALESCE(up.content_visibility,'public')='public' AND p.visibility='public') OR
+            (EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=? AND f.following_id=p.user_id)
+              AND COALESCE(up.profile_visibility,'public')<>'private'
+              AND COALESCE(up.content_visibility,'public') IN ('public','followers')))
+        ORDER BY p.created_at DESC LIMIT ?`).bind(viewerId,viewerId,viewerId,viewerId,viewerId,limit).all();
       return json({posts:(rows.results||[]).map(p=>({...p,author:{id:p.user_id,name:p.display_name,username:p.username,avatarUrl:p.avatar_url}}))});
     }
 
@@ -418,18 +527,76 @@ export async function handleApi(request, env) {
     if(method==="GET"&&path==="/api/users"){
       const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
       const q=String(url.searchParams.get("q")||"").trim().toLowerCase();if(q.length<2)return json({users:[]});
-      const rows=await env.DB.prepare("SELECT id,username,display_name,bio,location,role,avatar_url FROM users WHERE is_active=1 AND id<>? AND (username LIKE ? OR display_name LIKE ?) ORDER BY display_name LIMIT 20").bind(user.id,"%"+q+"%","%"+q+"%").all();
+      const rows=await env.DB.prepare(`SELECT u.id,u.username,u.display_name,u.bio,u.location,u.role,u.avatar_url,ap.country,ap.city
+        FROM users u LEFT JOIN user_privacy up ON up.user_id=u.id LEFT JOIN account_profiles ap ON ap.user_id=u.id
+        WHERE u.is_active=1 AND u.id<>? AND (u.username LIKE ? OR u.display_name LIKE ?)
+          AND COALESCE(up.profile_visibility,'public')='public'
+          AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE b.blocker_id=? AND b.blocked_id=u.id)
+          AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE b.blocker_id=u.id AND b.blocked_id=?)
+        ORDER BY u.display_name LIMIT 20`).bind(user.id,"%"+q+"%","%"+q+"%",user.id,user.id).all();
       return json({users:rows.results||[]});
     }
 
+    const profileMatch=path.match(/^\/api\/users\/([a-f0-9-]+)\/profile$/);
+    if(method==="GET"&&profileMatch){
+      const viewer=await currentUser(request,env.DB),target=await userRecord(env.DB,profileMatch[1]);
+      if(!target||!target.is_active)return fail("Profile not found.",404,"not_found");
+      if(viewer&&await isBlocked(env.DB,viewer.id,target.id))return fail("Profile not found.",404,"not_found");
+      const follows=viewer?Boolean(await env.DB.prepare("SELECT 1 FROM follows WHERE follower_id=? AND following_id=?").bind(viewer.id,target.id).first()):false;
+      const owner=viewer?.id===target.id,privacy=publicPrivacy(target);
+      if(!owner&&privacy.profileVisibility==="private"&&!follows)return fail("This profile is private.",403,"profile_private");
+      if(!owner&&privacy.profileVisibility==="followers"&&!follows)return fail("Follow this member to view their profile.",403,"profile_restricted");
+      const canSeePosts=owner||privacy.contentVisibility==="public"||(follows&&privacy.contentVisibility==="followers");
+      let posts=[];
+      if(canSeePosts){
+        const rows=await env.DB.prepare(`SELECT p.id,p.body,p.media_url,p.media_type,p.visibility,p.created_at,
+          (SELECT COUNT(*) FROM post_likes l WHERE l.post_id=p.id) AS likes,
+          (SELECT COUNT(*) FROM comments c WHERE c.post_id=p.id AND c.deleted_at IS NULL) AS comments,
+          EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=?) AS liked
+          FROM posts p WHERE p.user_id=? AND p.deleted_at IS NULL AND (?=1 OR p.visibility='public' OR EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=? AND f.following_id=p.user_id))
+          ORDER BY p.created_at DESC LIMIT 30`).bind(viewer?.id||"",target.id,owner?1:0,viewer?.id||"").all();
+        posts=rows.results||[];
+      }
+      const [followers,following]=await Promise.all([
+        env.DB.prepare("SELECT COUNT(*) AS n FROM follows WHERE following_id=?").bind(target.id).first(),
+        env.DB.prepare("SELECT COUNT(*) AS n FROM follows WHERE follower_id=?").bind(target.id).first()
+      ]);
+      return json({profile:{...publicUser(target),privacy,followers:Number(followers?.n||0),following:Number(following?.n||0),
+        isFollowing:follows,isSelf:owner,posts,communities:[]}});
+    }
+
     const followMatch=path.match(/^\/api\/users\/([a-f0-9-]+)\/follow$/);
-    if(method==="POST"&&followMatch){
+    if(followMatch&&(method==="POST"||method==="DELETE")){
       const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
-      if(followMatch[1]===user.id)return fail("You cannot follow your own account.");
-      const target=await env.DB.prepare("SELECT id FROM users WHERE id=? AND is_active=1").bind(followMatch[1]).first();if(!target)return fail("Member not found.",404,"not_found");
-      const result=await env.DB.prepare("INSERT OR IGNORE INTO follows(follower_id,following_id,created_at) VALUES (?,?,?)").bind(user.id,target.id,Math.floor(Date.now()/1000)).run();
-      if(Number(result.meta?.changes||0))await env.DB.prepare("INSERT INTO notifications(id,user_id,actor_id,kind,body,created_at) VALUES (?,?,?,'follow',?,?)").bind(randomId(),target.id,user.id,user.display_name+" started following you.",Math.floor(Date.now()/1000)).run();
+      const targetId=followMatch[1];if(targetId===user.id)return fail("You cannot follow your own account.");
+      const target=await env.DB.prepare("SELECT id FROM users WHERE id=? AND is_active=1").bind(targetId).first();if(!target)return fail("Member not found.",404,"not_found");
+      if(await isBlocked(env.DB,user.id,target.id))return fail("This action is unavailable for this member.",403,"blocked");
+      if(method==="DELETE"){
+        await env.DB.prepare("DELETE FROM follows WHERE follower_id=? AND following_id=?").bind(user.id,target.id).run();
+        return json({following:false});
+      }
+      await env.DB.prepare("INSERT OR IGNORE INTO follows(follower_id,following_id,created_at) VALUES (?,?,?)").bind(user.id,target.id,Math.floor(Date.now()/1000)).run();
+      await env.DB.prepare("INSERT INTO notifications(id,user_id,actor_id,kind,body,created_at) SELECT ?,?,?,'follow',?,? WHERE NOT EXISTS(SELECT 1 FROM notifications WHERE user_id=? AND actor_id=? AND kind='follow' AND created_at>?)")
+        .bind(randomId(),target.id,user.id,user.display_name+" started following you.",Math.floor(Date.now()/1000),target.id,user.id,Math.floor(Date.now()/1000)-60).run();
       return json({following:true});
+    }
+
+    const blockMatch=path.match(/^\/api\/users\/([a-f0-9-]+)\/block$/);
+    if(blockMatch&&(method==="POST"||method==="DELETE")){
+      const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
+      const targetId=blockMatch[1];if(targetId===user.id)return fail("You cannot block your own account.");
+      const target=await env.DB.prepare("SELECT id FROM users WHERE id=? AND is_active=1").bind(targetId).first();if(!target)return fail("Member not found.",404,"not_found");
+      if(method==="DELETE"){await env.DB.prepare("DELETE FROM user_blocks WHERE blocker_id=? AND blocked_id=?").bind(user.id,targetId).run();return json({blocked:false});}
+      await env.DB.batch([
+        env.DB.prepare("INSERT OR IGNORE INTO user_blocks(blocker_id,blocked_id,created_at) VALUES (?,?,?)").bind(user.id,targetId,Math.floor(Date.now()/1000)),
+        env.DB.prepare("DELETE FROM follows WHERE (follower_id=? AND following_id=?) OR (follower_id=? AND following_id=?)").bind(user.id,targetId,targetId,user.id)
+      ]);
+      return json({blocked:true});
+    }
+    if(method==="GET"&&path==="/api/blocks"){
+      const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
+      const rows=await env.DB.prepare("SELECT u.id,u.username,u.display_name,u.avatar_url FROM user_blocks b JOIN users u ON u.id=b.blocked_id WHERE b.blocker_id=? ORDER BY b.created_at DESC").bind(user.id).all();
+      return json({users:rows.results||[]});
     }
 
     if(method==="GET"&&path==="/api/careers"){
