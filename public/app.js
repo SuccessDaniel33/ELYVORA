@@ -2,23 +2,8 @@
   "use strict";
   const STORE = "elyvora.prototype.v1";
   const starter = {
-    profile:{name:"Amara Okafor",handle:"amarainmotion",bio:"Curious by nature. Building a life full of stories, meaningful connections and new possibilities.",location:"Lagos, Nigeria",role:"Creative entrepreneur",avatar:"A"},
-    balance:2450,
-    posts:[
-      {id:"p1",name:"Amara Okafor",handle:"@amarainmotion",time:"12 min ago",text:"A new city always has a new story waiting. Spent the afternoon discovering little corners of Lagos that remind me why I love being here. Where should I explore next? ✨",art:"city",likes:28,comments:6,liked:false},
-      {id:"p2",name:"Tobi Adebayo",handle:"@tobithecreator",time:"38 min ago",text:"Creativity grows when we share what we're learning. Working on something new with a few brilliant people this week. More soon. 🚀",art:"creative",likes:46,comments:11,liked:false},
-      {id:"p3",name:"Nia Williams",handle:"@niaaroundtheworld",time:"1 hr ago",text:"The best communities are built one genuine conversation at a time. Excited to meet more curious minds from around the world here.",art:"community",likes:19,comments:4,liked:false}
-    ],
-    messages:{
-      "tobi":[{mine:false,text:"Hey Amara! Welcome to ELYVORA. What are you building these days?",time:"10:24"},{mine:true,text:"I'm exploring new creative projects and meeting people to collaborate with.",time:"10:26"},{mine:false,text:"That sounds exciting. We should exchange ideas sometime!",time:"10:28"}],
-      "nia":[{mine:false,text:"Hi! I saw your post about exploring Lagos. Any favourite spots?",time:"Yesterday"},{mine:true,text:"Still discovering, but the art spaces have been amazing.",time:"Yesterday"}]
-    },
-    activeChat:"tobi",
-    transactions:[{label:"Welcome credits",detail:"ELYVORA starter balance",amount:2450,type:"in",time:"Today"}],
-    owned:[],
-    jobsDone:[],
-    needs:{hunger:72,energy:68,fun:64,social:56,hygiene:86,bladder:82},
-    banner:true
+    profile:{name:"Guest",handle:"guest",bio:"",location:"",role:"",avatar:"E"},
+    balance:0,posts:[],messages:{},activeChat:null,transactions:[],owned:[],jobsDone:[],needs:null,banner:false
   };
   let state = load();
   let authUser = null;
@@ -424,7 +409,7 @@
   function avatar(letter, extra=""){return '<span class="avatar '+extra+'">'+safe(letter||"E")+"</span>";}
   function initials(name){return (name||"E").trim().split(/\s+/).slice(0,2).map(x=>x[0]).join("").toUpperCase();}
   function setHeader(){
-    const names={home:"Home",discover:"Discover",world:"City",life:"My life",messages:"Messages",careers:"Careers",economy:"Economy",profile:"My profile"};
+    const names={home:"Home",discover:"Explore",messages:"Messages",careers:"Careers",economy:"Economy",profile:"Profile"};
     document.querySelector("#page-title").textContent=names[currentView]||"Home";
     document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===currentView));
     document.querySelector("#side-name").textContent=state.profile.name;
@@ -443,28 +428,18 @@
   }
   function homeView(){
     const p=state.profile;
-    return pageHead("MONDAY, YOUR WORLD IS OPEN","Good afternoon, "+safe(p.name.split(" ")[0])+" ✦","There’s always something new to discover, someone to meet and a next step to take.",'<button class="button-quiet" data-action="edit-profile">Edit profile ↗</button>')+
-    '<div class="layout-grid"><div class="main-column">'+
-      '<section class="card greeting-banner"><p class="eyebrow">A WORLD OF POSSIBILITY</p><h2>Your next chapter starts here.</h2><p>Meet people, discover places, share your story and create new opportunities in one connected world.</p><div class="greeting-actions"><button class="button-primary" data-view="world">Explore the world ↗</button><button class="button-outline-light" data-action="create-post">Share a moment ＋</button></div></section>'+
-      '<section class="card card-pad"><div class="card-title"><h3>People you may know</h3><a href="#" data-view="discover">Find more ↗</a></div><div class="stories"><button class="story add" data-action="create-post"><div class="story-ring"><div class="story-face">＋</div></div><small>Your story</small></button>'+[['Tobi','T'],['Nia','N'],['David','D'],['Zara','Z']].map(x=>'<button class="story" data-action="story" data-name="'+x[0]+'"><div class="story-ring"><div class="story-face">'+x[1]+'</div></div><small>'+x[0]+'</small></button>').join("")+'</div></section>'+
-      '<section class="card composer"><span class="avatar avatar-you">'+initials(p.name)+'</span><button class="composer-entry" data-action="create-post">What’s happening in your world, '+safe(p.name.split(" ")[0])+'?</button><div class="composer-actions"><button title="Add image" data-action="create-post">▧</button><button title="Add video" data-action="video-post">▷</button><button title="Voice note" data-action="voice-note">◖</button></div></section>'+
-      '<div class="section-label"><span>Your feed</span><a class="subtle-link" data-view="discover">Explore communities →</a></div>'+
-      (remoteFeedLoaded&&!state.posts.length?'<div class="card empty-state"><div class="empty-icon">✧</div><h3>Your feed is ready for your story</h3><p>Follow people and publish your first update to start building your ELYVORA community.</p><button class="button-primary" data-action="create-post">Create your first post</button></div>':"")+state.posts.map(postCard).join("")+
-    '</div><aside class="right-column">'+
-      '<section class="card card-pad"><div class="card-title"><h3>Your profile</h3><a href="#" data-view="profile">View ↗</a></div><div class="profile-mini">'+avatar(initials(p.name),"avatar-you")+'<span><b>'+safe(p.name)+'</b><small>@'+safe(p.handle)+'</small></span></div><p class="muted-copy">'+safe(p.bio)+'</p><div class="divider"></div><div class="mini-list"><div class="mini-row"><span>✧</span><span><b>Profile strength</b><small>Add details to stand out</small></span><strong>65%</strong></div><div class="progress-track"><span style="width:65%"></span></div></div></section>'+
-      '<section class="wallet-card card"><div class="wallet-label">YOUR ELYVORA BALANCE · DEMO</div><div class="wallet-amount">◈ '+money(state.balance)+'</div><div class="wallet-caption">Virtual credits · Not real money</div><div class="wallet-meta"><span>Starter balance</span><b>View economy ↗</b></div><button class="button-outline-light" style="margin-top:13px" data-view="economy">Open wallet</button></section>'+
-      '<section class="card card-pad"><div class="card-title"><h3>Make your next move</h3></div><div class="quick-grid"><button class="quick-tile" data-view="careers"><span>▥</span><b>Find work</b><small>Build your path</small></button><button class="quick-tile" data-view="world"><span>◎</span><b>Explore</b><small>Visit somewhere new</small></button><button class="quick-tile" data-view="messages"><span>▤</span><b>Connect</b><small>Meet your people</small></button><button class="quick-tile" data-view="economy"><span>◈</span><b>Build wealth</b><small>Virtual economy</small></button></div></section>'+
-      '<section class="card card-pad"><div class="card-title"><h3>Trending on ELYVORA</h3><a data-view="discover">Explore</a></div><div class="mini-list"><div class="mini-row"><span class="mini-icon">#</span><span><b>#CreativeLagos</b><small>2.4k conversations</small></span></div><div class="mini-row"><span class="mini-icon">#</span><span><b>#BuildInPublic</b><small>1.8k conversations</small></span></div><div class="mini-row"><span class="mini-icon">#</span><span><b>#WorldExplorers</b><small>960 conversations</small></span></div></div></section>'+
-    '</aside></div>';
+    const feed=state.posts.map(postCard).join("");
+    const wallet=authUser&&remoteEconomy?'<section class="wallet-card card"><div class="wallet-label">SIMULATED ELYVORA BALANCE</div><div class="wallet-amount">◈ '+money(state.balance)+'</div><div class="wallet-caption">Virtual credits · no cash value</div><button class="button-outline-light" style="margin-top:13px" data-view="economy">View economy</button></section>':"";
+    return pageHead("YOUR NETWORK","Welcome to ELYVORA"+(authUser?", "+safe(p.name.split(" ")[0]):"")+".","A global space to connect, share ideas, discover opportunities and build meaningful relationships.",'<button class="button-quiet" data-action="edit-profile">Edit profile ↗</button>')+
+      '<div class="layout-grid"><div class="main-column">'+
+      '<section class="card greeting-banner"><p class="eyebrow">CONNECTION STARTS HERE</p><h2>Make room for what moves you.</h2><p>Share your perspective, meet people beyond your circle and discover opportunities across the world.</p><div class="greeting-actions">'+(authUser?'<button class="button-primary" data-action="create-post">Create a post ＋</button><button class="button-outline-light" data-view="discover">Find your people ↗</button>':'<button class="button-primary" data-action="account">Create your account ↗</button><button class="button-outline-light" data-view="discover">Explore ELYVORA</button>')+'</div></section>'+
+      (authUser?'<section class="card composer"><span class="avatar avatar-you">'+initials(p.name)+'</span><button class="composer-entry" data-action="create-post">What would you like to share?</button><div class="composer-actions"><button title="Add image" data-action="create-post">▧</button><button title="Add video" data-action="video-post">▷</button></div></section>':'')+
+      '<div class="section-label"><span>Community feed</span><span class="tag">'+(remoteFeedLoaded?"LATEST POSTS":"")+'</span></div>'+
+      (feed||'<div class="card empty-state"><div class="empty-icon">✧</div><h3>'+(authUser?"Your feed is ready":"A fresh space to connect")+'</h3><p>'+(authUser?"Follow members and share your first post to start your feed.":"Sign in to publish, follow members and build your personal feed. Public content will appear here as the community grows.")+'</p>'+(authUser?'<button class="button-primary" data-action="create-post">Create your first post</button>':'<button class="button-primary" data-action="account">Join ELYVORA</button>')+'</div>')+
+      '</div><aside class="right-column"><section class="card card-pad"><div class="card-title"><h3>Explore ELYVORA</h3><a href="#" data-view="discover">Explore ↗</a></div><div class="mini-list"><div class="mini-row"><span class="mini-icon">◉</span><span><b>People</b><small>Find members and build your network</small></span></div><div class="mini-row"><span class="mini-icon">▥</span><span><b>Careers</b><small>Discover professional opportunities</small></span></div><div class="mini-row"><span class="mini-icon">▤</span><span><b>Messages</b><small>Continue a private conversation</small></span></div></div></section>'+wallet+
+      '<section class="card card-pad"><div class="card-title"><h3>Your account</h3><a data-view="profile">Profile ↗</a></div><div class="profile-mini">'+avatar(initials(p.name),"avatar-you")+'<span><b>'+safe(p.name)+'</b><small>@'+safe(p.handle)+'</small></span></div><p class="muted-copy">'+safe(p.bio||"Complete your profile to introduce yourself to the community.")+'</p><button class="button-quiet" data-action="edit-profile">Edit profile</button></section></aside></div>';
   }
-  const exploreItems=[
-    {type:"Community",icon:"✳",title:"Creative minds",desc:"A space for designers, artists, storytellers and people who love making things.",members:"1,240 members"},
-    {type:"Community",icon:"⌘",title:"Founders & builders",desc:"Share ideas, find collaborators and grow projects with curious people.",members:"860 members"},
-    {type:"Place",icon:"◎",title:"Lagos Island",desc:"Explore waterfront views, culture, food and the energy of the city.",members:"Lagos, Nigeria"},
-    {type:"Career",icon:"▥",title:"Digital opportunities",desc:"Discover creative, technology and remote-friendly career paths.",members:"24 opportunities"},
-    {type:"Community",icon:"◇",title:"World explorers",desc:"Travel stories, local guides and recommendations from around the world.",members:"3,400 members"},
-    {type:"Place",icon:"⌖",title:"Tokyo at night",desc:"Discover neighbourhoods, culture, food and experiences in Tokyo.",members:"Tokyo, Japan"}
-  ];
+  const exploreItems=[];
   function discoverView(){
     const peopleMode=discoverFilter==="People";
     const filtered=exploreItems.filter(x=>(discoverFilter==="All"||x.type===discoverFilter)&&(!discoverQuery||[x.title,x.desc,x.type].join(" ").toLowerCase().includes(discoverQuery.toLowerCase())));
@@ -507,10 +482,7 @@
       return pageHead("STAY IN THE LOOP","Conversations.","Private messages between ELYVORA members.",'<button class="button-quiet" data-action="new-chat">＋ New message</button>')+
         '<div class="card inbox"><div class="inbox-list show-all" id="inbox-list"><div class="inbox-top"><h3>Your conversations</h3><span class="tag">ACCOUNT MESSAGES</span></div>'+list+'</div>'+chatPane+'</div>';
     }
-    const id=state.activeChat||"tobi", person=id==="nia"?{name:"Nia Williams",letter:"N",handle:"@niaaroundtheworld"}:{name:"Tobi Adebayo",letter:"T",handle:"@tobithecreator"};
-    const msgs=state.messages[id]||[];
-    return pageHead("STAY IN THE LOOP","Conversations.","Explore the local messaging demo. Sign in to start conversations with other members.",'<button class="button-quiet" data-action="account">Sign in</button>')+
-    '<div class="card inbox">'+chatList()+'<section class="chat-pane"><div class="chat-heading">'+avatar(person.letter)+'<div><b>'+person.name+'</b><small>'+person.handle+' · Sample member</small></div><div class="chat-tools"><button data-action="voice-call">♬ Voice</button><button data-action="video-call">▣ Video</button></div></div><div class="callout" style="margin:12px 14px 0">This is a local demonstration conversation. Sign in to send persistent messages to real ELYVORA members. Voice notes and calls are not live yet.</div><div class="chat-messages" id="chat-messages"><div class="chat-day">TODAY</div>'+msgs.map(m=>'<div class="message-bubble '+(m.mine?"mine":"")+'">'+safe(m.text)+'<small>'+safe(m.time)+'</small></div>').join("")+'</div><form class="chat-compose" id="chat-form"><button type="button" class="button-quiet" style="padding:8px" data-action="voice-note" aria-label="Voice note">◖</button><input id="chat-input" placeholder="Write a demo message..." autocomplete="off" aria-label="Message"><button type="submit">Send ↗</button></form></section></div>';
+    return pageHead("PRIVATE COMMUNICATION","Your messages.","Connect with ELYVORA members through private conversations.",'<button class="button-primary" data-action="account">Sign in to message</button>')+'<div class="card empty-state"><div class="empty-icon">▤</div><h3>Your inbox is waiting</h3><p>Sign in to start private conversations with real ELYVORA members. No sample chats or invented activity are shown.</p><button class="button-primary" data-action="account">Sign in or create an account</button></div>';
   }
   const jobs=[
     {id:"community",icon:"✧",title:"Community host",org:"ELYVORA COMMUNITY",desc:"Welcome new members, nurture conversations and help communities thrive.",pay:180,skill:"Communication"},
@@ -543,6 +515,7 @@
     {id:"tokyo-retreat",name:"Garden retreat",place:"Tokyo · East Gardens",price:1350,desc:"A peaceful place to reset and create."}
   ];
   function economyView(){
+    if(!authUser)return pageHead("DIGITAL ECONOMY","Your ELYVORA economy.","Sign in to access your simulated wallet and property records.")+'<div class="card empty-state"><div class="empty-icon">◈</div><h3>Your economy starts with your account</h3><p>Sign in to view your personal virtual balance and saved transaction records.</p><button class="button-primary" data-action="account">Sign in</button></div>';
     const economyProperties=remoteEconomy?remoteEconomy.properties.map(p=>({id:p.id,name:p.name,place:p.city+" · "+p.country,price:Number(p.price),desc:p.description})):properties;
     const ownedIds=remoteEconomy?remoteEconomy.owned.map(p=>p.property_id):state.owned;
     const ledger=remoteEconomy?remoteEconomy.transactions.map(t=>({label:t.description,detail:t.reference_type||"Virtual economy",amount:t.amount,type:t.kind==="credit"?"in":"out",time:relativeTime(t.created_at)})):state.transactions;
@@ -552,16 +525,16 @@
   function profileView(){
     const p=state.profile, mine=state.posts.filter(x=>x.handle==="@"+p.handle);
     return pageHead("YOUR IDENTITY","Your profile.","Your story, your interests and the connections you're building.",'<button class="button-primary" data-action="edit-profile">Edit profile ↗</button>')+
-    '<div class="layout-grid"><div class="main-column"><section class="card" style="overflow:hidden"><div class="profile-cover"></div><div class="profile-summary">'+avatar(initials(p.name),"avatar-you")+'<div class="profile-copy"><h2>'+safe(p.name)+'</h2><p>@'+safe(p.handle)+' · '+safe(p.location)+'</p><span class="tag">'+safe(p.role)+'</span></div></div><div class="profile-bio">'+safe(p.bio)+'</div><div class="profile-stats"><div><b>'+mine.length+'</b><small>Posts</small></div><div><b>128</b><small>Followers · demo</small></div><div><b>96</b><small>Following · demo</small></div><div><b>01</b><small>Level</small></div></div></section><div class="section-label"><span>Your posts</span><button class="subtle-link" data-action="create-post">＋ Create post</button></div>'+(mine.length?mine.map(postCard).join(""):'<div class="card empty-state"><div class="empty-icon">✧</div><h3>Your story starts here</h3><p>Share a thought, an image or a moment with the ELYVORA community.</p><button class="button-primary" data-action="create-post">Create your first post</button></div>')+'</div><aside class="right-column"><section class="card card-pad"><div class="card-title"><h3>About you</h3><a data-action="edit-profile">Edit</a></div><div class="mini-list"><div class="mini-row"><span class="mini-icon">⌖</span><span><b>Based in</b><small>'+safe(p.location)+'</small></span></div><div class="mini-row"><span class="mini-icon">✧</span><span><b>Doing</b><small>'+safe(p.role)+'</small></span></div><div class="mini-row"><span class="mini-icon">◈</span><span><b>Virtual balance</b><small>◈ '+money(state.balance)+' demo credits</small></span></div></div></section><section class="card card-pad"><div class="card-title"><h3>Your journey</h3></div><div class="mini-list"><div class="mini-row"><span class="mini-icon">✦</span><span><b>Joined ELYVORA</b><small>Explorer · starter profile</small></span></div><div class="mini-row"><span class="mini-icon">▥</span><span><b>Career activities</b><small>'+state.jobsDone.length+' completed</small></span></div><div class="mini-row"><span class="mini-icon">⌂</span><span><b>Virtual properties</b><small>'+state.owned.length+' acquired</small></span></div></div></section></aside></div>';
+    '<div class="layout-grid"><div class="main-column"><section class="card" style="overflow:hidden"><div class="profile-cover"></div><div class="profile-summary">'+avatar(initials(p.name),"avatar-you")+'<div class="profile-copy"><h2>'+safe(p.name)+'</h2><p>@'+safe(p.handle)+' · '+safe(p.location)+'</p><span class="tag">'+safe(p.role)+'</span></div></div><div class="profile-bio">'+safe(p.bio)+'</div><div class="profile-stats"><div><b>'+mine.length+'</b><small>Posts</small></div></div></section><div class="section-label"><span>Your posts</span><button class="subtle-link" data-action="create-post">＋ Create post</button></div>'+(mine.length?mine.map(postCard).join(""):'<div class="card empty-state"><div class="empty-icon">✧</div><h3>Your story starts here</h3><p>Share a thought, an image or a moment with the ELYVORA community.</p><button class="button-primary" data-action="create-post">Create your first post</button></div>')+'</div><aside class="right-column"><section class="card card-pad"><div class="card-title"><h3>About you</h3><a data-action="edit-profile">Edit</a></div><div class="mini-list"><div class="mini-row"><span class="mini-icon">⌖</span><span><b>Based in</b><small>'+safe(p.location)+'</small></span></div><div class="mini-row"><span class="mini-icon">✧</span><span><b>Doing</b><small>'+safe(p.role)+'</small></span></div><div class="mini-row"><span class="mini-icon">◈</span><span><b>Virtual balance</b><small>◈ '+money(state.balance)+' demo credits</small></span></div></div></section><section class="card card-pad"><div class="card-title"><h3>Your journey</h3></div><div class="mini-list"><div class="mini-row"><span class="mini-icon">✦</span><span><b>Joined ELYVORA</b><small>Explorer · starter profile</small></span></div><div class="mini-row"><span class="mini-icon">▥</span><span><b>Career activities</b><small>'+state.jobsDone.length+' completed</small></span></div><div class="mini-row"><span class="mini-icon">⌂</span><span><b>Virtual properties</b><small>'+state.owned.length+' acquired</small></span></div></div></section></aside></div>';
   }
   function render(){
     setHeader();
-    const views={home:homeView,discover:discoverView,world:worldView,life:lifeView,messages:messagesView,careers:careersView,economy:economyView,profile:profileView};
+    const views={home:homeView,discover:discoverView,messages:messagesView,careers:careersView,economy:economyView,profile:profileView};
     root.innerHTML=(views[currentView]||homeView)();
     if(currentView==="messages")requestAnimationFrame(()=>{const el=document.querySelector("#chat-messages");if(el)el.scrollTop=el.scrollHeight;});
   }
   function go(view){
-    if(!["home","discover","world","life","messages","careers","economy","profile"].includes(view))return;
+    if(!["home","discover","messages","careers","economy","profile"].includes(view))return;
     currentView=view;document.querySelector("#sidebar").classList.remove("open");render();window.scrollTo({top:0,behavior:"smooth"});
     if(view==="messages"&&authUser){refreshConversations().then(()=>{connectChatSocket(activeConversationId);render();}).catch(err=>toast(err.message,true));}
     else if(view!=="messages"&&!callState)disconnectChatSocket();
