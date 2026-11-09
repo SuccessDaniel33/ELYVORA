@@ -257,9 +257,14 @@ export async function handleApi(request, env) {
       const id=mediaMatch[1],mediaUrl="/api/media/"+id;
       const asset=await env.DB.prepare("SELECT id,owner_id,mime_type,file_name,byte_length,data_b64 FROM media_assets WHERE id=?").bind(id).first();
       if(!asset)return fail("Media not found.",404,"not_found");
-      const publicPost=await env.DB.prepare("SELECT 1 FROM posts WHERE media_url=? AND visibility='public' AND deleted_at IS NULL LIMIT 1").bind(mediaUrl).first();
-      const conversation= user ? await env.DB.prepare("SELECT 1 FROM messages m JOIN conversation_members cm ON cm.conversation_id=m.conversation_id WHERE m.media_url=? AND cm.user_id=? LIMIT 1").bind(mediaUrl,user.id).first() : null;
-      const publicProfile=await env.DB.prepare("SELECT 1 FROM users u JOIN user_privacy up ON up.user_id=u.id WHERE (u.avatar_url=? OR EXISTS(SELECT 1 FROM account_profiles ap WHERE ap.user_id=u.id AND ap.cover_image_url=?)) AND up.profile_visibility='public' LIMIT 1").bind(mediaUrl,mediaUrl).first();
+      const publicPost=await env.DB.prepare("SELECT 1 FROM posts p JOIN user_privacy up ON up.user_id=p.user_id WHERE p.media_url=? AND p.visibility='public' AND p.deleted_at IS NULL AND up.profile_visibility='public' AND up.content_visibility='public' LIMIT 1").bind(mediaUrl).first();
+      const conversation=user?await env.DB.prepare("SELECT 1 FROM messages m JOIN conversation_members cm ON cm.conversation_id=m.conversation_id WHERE m.media_url=? AND cm.user_id=? LIMIT 1").bind(mediaUrl,user.id).first():null;
+      const publicProfile=await env.DB.prepare(`SELECT 1 FROM users u JOIN user_privacy up ON up.user_id=u.id
+        WHERE (u.avatar_url=? OR EXISTS(SELECT 1 FROM account_profiles ap WHERE ap.user_id=u.id AND ap.cover_image_url=?))
+          AND (up.profile_visibility='public' OR (up.profile_visibility='followers' AND EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=? AND f.following_id=u.id)))
+          AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE b.blocker_id=? AND b.blocked_id=u.id)
+          AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE b.blocker_id=u.id AND b.blocked_id=?)
+        LIMIT 1`).bind(mediaUrl,mediaUrl,user?.id||"",user?.id||"",user?.id||"").first();
       if(asset.owner_id!==user?.id&&!publicPost&&!conversation&&!publicProfile)return fail("You do not have access to this media.",403,"forbidden");
       const bytes=fromBase64url(asset.data_b64);
       return new Response(bytes,{status:200,headers:{"Content-Type":asset.mime_type,"Content-Length":String(asset.byte_length),"Content-Disposition":"inline; filename*=UTF-8''"+encodeURIComponent(asset.file_name),"Cache-Control":publicPost?"public, max-age=3600":"private, no-store","X-Content-Type-Options":"nosniff"}});
@@ -539,13 +544,14 @@ export async function handleApi(request, env) {
     if(method==="GET"&&path==="/api/users"){
       const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
       const q=String(url.searchParams.get("q")||"").trim().toLowerCase();if(q.length<2)return json({users:[]});
-      const rows=await env.DB.prepare(`SELECT u.id,u.username,u.display_name,u.bio,u.location,u.role,u.avatar_url,ap.country,ap.city
+      const rows=await env.DB.prepare(`SELECT u.id,u.username,u.display_name,u.bio,u.location,u.role,u.avatar_url,ap.country,ap.city,
+        EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=? AND f.following_id=u.id) AS is_following
         FROM users u LEFT JOIN user_privacy up ON up.user_id=u.id LEFT JOIN account_profiles ap ON ap.user_id=u.id
         WHERE u.is_active=1 AND u.id<>? AND (u.username LIKE ? OR u.display_name LIKE ?)
           AND COALESCE(up.profile_visibility,'public') IN ('public','followers')
           AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE b.blocker_id=? AND b.blocked_id=u.id)
           AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE b.blocker_id=u.id AND b.blocked_id=?)
-        ORDER BY u.display_name LIMIT 20`).bind(user.id,"%"+q+"%","%"+q+"%",user.id,user.id).all();
+        ORDER BY u.display_name LIMIT 20`).bind(user.id,user.id,"%"+q+"%","%"+q+"%",user.id,user.id).all();
       return json({users:rows.results||[]});
     }
 
@@ -709,7 +715,8 @@ export async function handleApi(request, env) {
       const blockedPeer=await env.DB.prepare("SELECT cm.user_id FROM conversation_members cm WHERE cm.conversation_id=? AND cm.user_id<>? AND EXISTS(SELECT 1 FROM user_blocks b WHERE (b.blocker_id=? AND b.blocked_id=cm.user_id) OR (b.blocker_id=cm.user_id AND b.blocked_id=?)) LIMIT 1").bind(messagesMatch[1],user.id,user.id,user.id).first();
       if(blockedPeer)return fail("Conversation not found.",404,"not_found");
       const rows=await env.DB.prepare("SELECT m.id,m.body,m.message_type,m.media_url,m.created_at,m.sender_id,u.display_name,u.username FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.conversation_id=? AND m.deleted_at IS NULL ORDER BY m.created_at DESC LIMIT 100").bind(messagesMatch[1]).all();
-      await env.DB.prepare("UPDATE conversation_members SET last_read_at=? WHERE conversation_id=? AND user_id=?").bind(Math.floor(Date.now()/1000),messagesMatch[1],user.id).run();
+      const receipt=await env.DB.prepare("SELECT read_receipts FROM user_privacy WHERE user_id=?").bind(user.id).first();
+      if(receipt?.read_receipts!==0)await env.DB.prepare("UPDATE conversation_members SET last_read_at=? WHERE conversation_id=? AND user_id=?").bind(Math.floor(Date.now()/1000),messagesMatch[1],user.id).run();
       return json({messages:(rows.results||[]).reverse()});
     }
     if(messagesMatch&&method==="POST"){
@@ -717,6 +724,12 @@ export async function handleApi(request, env) {
       const member=await env.DB.prepare("SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?").bind(messagesMatch[1],user.id).first();if(!member)return fail("Conversation not found.",404,"not_found");
       const blockedPeer=await env.DB.prepare("SELECT cm.user_id FROM conversation_members cm WHERE cm.conversation_id=? AND cm.user_id<>? AND EXISTS(SELECT 1 FROM user_blocks b WHERE (b.blocker_id=? AND b.blocked_id=cm.user_id) OR (b.blocker_id=cm.user_id AND b.blocked_id=?)) LIMIT 1").bind(messagesMatch[1],user.id,user.id,user.id).first();
       if(blockedPeer)return fail("You cannot send messages in this conversation.",403,"blocked");
+      const recipient=await env.DB.prepare("SELECT cm.user_id FROM conversation_members cm WHERE cm.conversation_id=? AND cm.user_id<>? LIMIT 1").bind(messagesMatch[1],user.id).first();
+      if(recipient){
+        const recipientProfile=await userRecord(env.DB,recipient.user_id),setting=recipientProfile?.message_privacy||"everyone";
+        const senderFollows=Boolean(await env.DB.prepare("SELECT 1 FROM follows WHERE follower_id=? AND following_id=?").bind(user.id,recipient.user_id).first());
+        if(setting==="none"||setting==="followers"&&!senderFollows)return fail("This member no longer accepts messages from your account.",403,"messages_restricted");
+      }
       const data=await bodyJson(request),body=String(data.body||"").trim();
       const messageType=["text","image","video","voice"].includes(data.messageType)?data.messageType:"text";
       const mediaUrl=data.mediaUrl?String(data.mediaUrl):null;
