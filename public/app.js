@@ -12,6 +12,8 @@
   let remoteJobs = null;
   let remoteUsers = [];
   let remoteConversations = null;
+  let privacySettings = null;
+  let myProfileData = null;
   let remoteMessages = [];
   let activeConversationId = null;
   let chatSocket = null;
@@ -44,8 +46,19 @@
   }
   function applyUser(user){
     authUser=user;
-    state.profile={...state.profile,name:user.displayName||state.profile.name,handle:user.username||state.profile.handle,bio:user.bio||"",location:user.location||"",role:user.role||""};
+    state.profile={...state.profile,name:user.displayName||state.profile.name,handle:user.username||state.profile.handle,
+      bio:user.bio||"",location:user.location||"",role:user.role||"",country:user.country||"",city:user.city||"",
+      avatarUrl:user.avatarUrl||null,coverImageUrl:user.coverImageUrl||null,interests:user.interests||[],createdAt:user.createdAt||null};
     save();
+  }
+  async function refreshPrivacy(){
+    if(!authUser){privacySettings=null;return;}
+    const data=await apiRequest("/api/privacy");privacySettings=data.privacy||null;
+  }
+  async function refreshOwnProfile(){
+    if(!authUser){myProfileData=null;return;}
+    const data=await apiRequest("/api/users/"+encodeURIComponent(authUser.id)+"/profile");
+    myProfileData=data.profile||null;
   }
   function relativeTime(seconds){
     const age=Math.max(0,Math.floor(Date.now()/1000-Number(seconds||0)));
@@ -381,32 +394,59 @@
     try{
       await apiRequest("/api/health");
       const me=await apiRequest("/api/me");
-      if(me.user){applyUser(me.user);await Promise.all([refreshFeed(),refreshEconomy(),refreshJobs(),refreshConversations()]);}
+      if(me.user){applyUser(me.user);await Promise.all([refreshFeed(),refreshEconomy(),refreshJobs(),refreshConversations(),refreshPrivacy(),refreshOwnProfile()]);}
       else{await refreshJobs();}
       if(currentView==="messages"&&authUser)connectChatSocket(activeConversationId);
       render();
+      await handleAuthLinks();
     }catch(error){console.warn("ELYVORA remote services are not ready:",error.message);}
   }
   function authModal(mode="signin"){
     const signup=mode==="signup";
-    const fields=signup?'<div class="form-group"><label>YOUR NAME</label><input class="form-control" name="displayName" required minlength="2" maxlength="50" placeholder="Your full name"></div><div class="form-group"><label>USERNAME</label><input class="form-control" name="username" required minlength="3" maxlength="24" pattern="[A-Za-z0-9_.]+" placeholder="yourname"></div><div class="form-group"><label>EMAIL ADDRESS</label><input class="form-control" type="email" name="email" required maxlength="254" placeholder="you@example.com"></div>':'<div class="form-group"><label>EMAIL OR USERNAME</label><input class="form-control" name="identifier" required autocomplete="username" placeholder="Email address or username"></div>';
-    openModal(signup?"Create your ELYVORA account":"Welcome back",'<form id="auth-form" data-mode="'+mode+'">'+fields+'<div class="form-group"><label>PASSWORD</label><input class="form-control" type="password" name="password" required minlength="'+(signup?"10":"1")+'" maxlength="128" autocomplete="'+(signup?"new-password":"current-password")+'" placeholder="'+(signup?"At least 10 characters":"Your password")+'"></div><div class="callout">'+(signup?"Your account will be saved securely on ELYVORA. Add a working email address; email verification and recovery are part of the next release.":"Your private session is protected by an HttpOnly cookie.")+'</div><div class="modal-footer"><button class="button-quiet" type="button" data-action="auth-switch" data-mode="'+(signup?"signin":"signup")+'">'+(signup?"Already a member? Sign in":"New to ELYVORA? Create account")+'</button><button class="button-primary" type="submit">'+(signup?"Create account":"Sign in")+'</button></div></form>',"ELYVORA ACCOUNT");
+    const fields=signup
+      ?'<div class="form-group"><label>FULL NAME</label><input class="form-control" name="displayName" required minlength="2" maxlength="50" autocomplete="name" placeholder="Your full name"></div><div class="form-row"><div class="form-group"><label>USERNAME</label><input class="form-control" name="username" required minlength="3" maxlength="24" pattern="[A-Za-z0-9_.]+" autocomplete="username" placeholder="yourname"></div><div class="form-group"><label>EMAIL ADDRESS</label><input class="form-control" type="email" name="email" required maxlength="254" autocomplete="email" placeholder="you@example.com"></div></div><div class="form-row"><div class="form-group"><label>COUNTRY</label><input class="form-control" name="country" required maxlength="80" autocomplete="country-name" placeholder="Your country"></div><div class="form-group"><label>CITY <span class="muted-copy">(optional)</span></label><input class="form-control" name="city" maxlength="80" autocomplete="address-level2" placeholder="Your city"></div></div>'
+      :'<div class="form-group"><label>EMAIL OR USERNAME</label><input class="form-control" name="identifier" required autocomplete="username" placeholder="Email address or username"></div>';
+    openModal(signup?"Create your ELYVORA account":"Welcome back",'<form id="auth-form" data-mode="'+mode+'">'+fields+'<div class="form-group"><label>PASSWORD</label><input class="form-control" type="password" name="password" required minlength="'+(signup?"10":"1")+'" maxlength="128" autocomplete="'+(signup?"new-password":"current-password")+'" placeholder="'+(signup?"At least 10 characters":"Your password")+'"></div><div class="callout">'+(signup?"Your account is protected by a secure password hash and private session. Email verification will be sent when the email service is configured.":"Your private session is protected by a secure HttpOnly cookie.")+'</div><div class="modal-footer">'+(signup?'':'<button class="button-quiet" type="button" data-action="forgot-password">Forgot password?</button>')+'<button class="button-quiet" type="button" data-action="auth-switch" data-mode="'+(signup?"signin":"signup")+'">'+(signup?"Already a member? Sign in":"New to ELYVORA? Create account")+'</button><button class="button-primary" type="submit">'+(signup?"Create account":"Sign in")+'</button></div></form>',"ELYVORA ACCOUNT");
+  }
+  function forgotPasswordModal(email=""){
+    openModal("Reset your password",'<form id="auth-forgot-form"><div class="form-group"><label>ACCOUNT EMAIL</label><input class="form-control" type="email" name="email" required maxlength="254" autocomplete="email" value="'+safe(email)+'" placeholder="you@example.com"></div><p class="muted-copy">When email delivery is connected, we will send a time-limited password reset link if an account matches.</p><div class="modal-footer"><button type="button" class="button-quiet" data-action="auth-switch" data-mode="signin">Back to sign in</button><button type="submit" class="button-primary">Send reset link</button></div></form>',"ACCOUNT SECURITY");
+  }
+  function resetPasswordModal(token){
+    openModal("Choose a new password",'<form id="auth-reset-form" data-token="'+safe(token)+'"><div class="form-group"><label>NEW PASSWORD</label><input class="form-control" type="password" name="password" minlength="10" maxlength="128" required autocomplete="new-password" placeholder="At least 10 characters"></div><div class="form-group"><label>CONFIRM PASSWORD</label><input class="form-control" type="password" name="confirmPassword" minlength="10" maxlength="128" required autocomplete="new-password" placeholder="Enter the password again"></div><div class="modal-footer"><button type="button" class="button-quiet" data-action="auth-switch" data-mode="signin">Cancel</button><button type="submit" class="button-primary">Update password</button></div></form>',"ACCOUNT SECURITY");
+  }
+  async function handleAuthLinks(){
+    const params=new URLSearchParams(location.search),verifyToken=params.get("verify"),resetToken=params.get("reset");
+    if(verifyToken){
+      try{await apiRequest("/api/auth/verify-email",{method:"POST",body:JSON.stringify({token:verifyToken})});toast("Your email address has been verified.");if(authUser){const me=await apiRequest("/api/me");if(me.user)applyUser(me.user);render();}}
+      catch(error){toast(error.message,true);}
+      params.delete("verify");history.replaceState({},document.title,location.pathname+(params.toString()?"?"+params.toString():"")+location.hash);
+    }
+    if(resetToken)resetPasswordModal(resetToken);
+  }
+  async function resendVerification(){
+    try{await apiRequest("/api/auth/verification/resend",{method:"POST",body:"{}"});toast("A verification link has been sent to your email.");}
+    catch(error){toast(error.message,true);}
   }
   async function submitAuth(form){
     const mode=form.dataset.mode,fd=new FormData(form);
-    const payload=mode==="signup"?{displayName:fd.get("displayName"),username:fd.get("username"),email:fd.get("email"),password:fd.get("password")}:{identifier:fd.get("identifier"),password:fd.get("password")};
+    const payload=mode==="signup"?{displayName:fd.get("displayName"),username:fd.get("username"),email:fd.get("email"),country:fd.get("country"),city:fd.get("city"),password:fd.get("password")}:{identifier:fd.get("identifier"),password:fd.get("password")};
     const button=form.querySelector('button[type="submit"]');if(button){button.disabled=true;button.textContent="Please wait…";}
     try{
       const result=await apiRequest(mode==="signup"?"/api/auth/register":"/api/auth/login",{method:"POST",body:JSON.stringify(payload)});
-      applyUser(result.user);await Promise.all([refreshFeed(),refreshEconomy(),refreshJobs(),refreshConversations()]);closeModal();if(currentView==="messages")connectChatSocket(activeConversationId);render();toast(mode==="signup"?"Your ELYVORA account is ready.":"Welcome back to ELYVORA.");
+      applyUser(result.user);await Promise.all([refreshFeed(),refreshEconomy(),refreshJobs(),refreshConversations(),refreshPrivacy(),refreshOwnProfile()]);closeModal();if(currentView==="messages")connectChatSocket(activeConversationId);render();
+      toast(mode==="signup"?"Your ELYVORA account is ready.":"Welcome back to ELYVORA.");
+      if(mode==="signup"&&!result.user.emailVerified){toast(result.verificationSent?"Check your inbox to verify your email.":"Email verification will be available once email delivery is connected.");}
     }catch(error){toast(error.message,true);if(button){button.disabled=false;button.textContent=mode==="signup"?"Create account":"Sign in";}}
   }
   async function logout(){
     try{await apiRequest("/api/auth/logout",{method:"POST",body:"{}"});}catch{}
-    closeCall(false);incomingCall=null;disconnectChatSocket();authUser=null;remoteEconomy=null;remoteJobs=null;remoteConversations=null;remoteMessages=[];activeConversationId=null;remoteFeedLoaded=false;state.posts=structuredClone(starter.posts);state.profile=structuredClone(starter.profile);state.balance=starter.balance;save();closeModal();render();toast("You have signed out.");
+    closeCall(false);incomingCall=null;disconnectChatSocket();authUser=null;remoteEconomy=null;remoteJobs=null;remoteConversations=null;remoteMessages=[];activeConversationId=null;privacySettings=null;myProfileData=null;remoteFeedLoaded=false;state.posts=structuredClone(starter.posts);state.profile=structuredClone(starter.profile);state.balance=starter.balance;save();closeModal();render();toast("You have signed out.");
   }
   function money(n){return new Intl.NumberFormat("en-US").format(n);}
   function avatar(letter, extra=""){return '<span class="avatar '+extra+'">'+safe(letter||"E")+"</span>";}
+  function photoAvatar(url,name,extra=""){
+    return url?'<span class="avatar '+extra+'"><img class="avatar-image" src="'+safe(url)+'" alt="'+safe(name||"Profile photo")+'"></span>':avatar(initials(name),extra);
+  }
   function initials(name){return (name||"E").trim().split(/\s+/).slice(0,2).map(x=>x[0]).join("").toUpperCase();}
   function setHeader(){
     const names={home:"Home",discover:"Explore",messages:"Messages",careers:"Careers",economy:"Economy",profile:"Profile"};
@@ -414,8 +454,8 @@
     document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===currentView));
     document.querySelector("#side-name").textContent=state.profile.name;
     document.querySelector("#side-handle").textContent="@"+state.profile.handle;
-    document.querySelector("#side-avatar").textContent=initials(state.profile.name);
-    document.querySelector("#top-avatar").textContent=initials(state.profile.name);
+    document.querySelector("#side-avatar").innerHTML=state.profile.avatarUrl?'<img class="avatar-image" src="'+safe(state.profile.avatarUrl)+'" alt="Your profile photo">':initials(state.profile.name);
+    document.querySelector("#top-avatar").innerHTML=state.profile.avatarUrl?'<img class="avatar-image" src="'+safe(state.profile.avatarUrl)+'" alt="Your profile photo">':initials(state.profile.name);
     const accountButton=document.querySelector("#account-button");
     if(accountButton)accountButton.textContent=authUser?"Sign out":"Sign in";
     document.querySelector("#message-count").textContent=String(remoteConversations?.length||0);
@@ -443,7 +483,7 @@
   function discoverView(){
     const peopleMode=discoverFilter==="People";
     const filtered=exploreItems.filter(x=>(discoverFilter==="All"||x.type===discoverFilter)&&(!discoverQuery||[x.title,x.desc,x.type].join(" ").toLowerCase().includes(discoverQuery.toLowerCase())));
-    const peopleCards=(remoteUsers||[]).map(u=>'<article class="card feature-card"><div class="profile-mini">'+avatar(initials(u.display_name))+'<span><b>'+safe(u.display_name)+'</b><small>@'+safe(u.username)+'</small></span></div><p>'+safe(u.bio||"An ELYVORA member building their world.")+'</p><span class="tag">'+safe(u.role||"MEMBER")+'</span><p class="muted-copy" style="margin-top:10px">⌖ '+safe(u.location||"Location not shared")+'</p><button class="button-primary" style="width:100%" data-action="follow-user" data-id="'+safe(u.id)+'">＋ Follow member</button></article>').join("");
+    const peopleCards=(remoteUsers||[]).map(u=>'<article class="card feature-card"><div class="profile-mini">'+photoAvatar(u.avatar_url,u.display_name)+'<span><b>'+safe(u.display_name)+'</b><small>@'+safe(u.username)+'</small></span></div><p>'+safe(u.bio||"An ELYVORA member.")+'</p><p class="muted-copy" style="margin-top:10px">⌖ '+safe([u.city,u.country].filter(Boolean).join(", ")||u.location||"Location not shared")+'</p><div class="member-actions"><button class="button-quiet" data-action="view-profile" data-id="'+safe(u.id)+'">View profile</button><button class="button-primary" data-action="'+(u.is_following?"unfollow-user":"follow-user")+'" data-id="'+safe(u.id)+'">'+(u.is_following?"Following":"Follow")+'</button></div></article>').join("");
     const placeCards=filtered.map(x=>'<article class="card feature-card"><div class="feature-icon">'+x.icon+'</div><span class="tag">'+x.type.toUpperCase()+'</span><h3>'+safe(x.title)+'</h3><p>'+safe(x.desc)+'</p><div class="card-title"><small class="muted-copy">'+safe(x.members)+'</small><button class="subtle-link" data-action="explore-item" data-name="'+safe(x.title)+'">Open ↗</button></div></article>').join("");
     let emptyState="";
     if(peopleMode&&!authUser)emptyState='<div class="card empty-state"><div class="empty-icon">◉</div><h3>Meet the community</h3><p>Sign in to search ELYVORA members and build your network.</p><button class="button-primary" data-action="account">Sign in</button></div>';
@@ -500,9 +540,14 @@
     '<div class="main-column"><section class="card economy-balance"><div class="balance-row"><div><p class="eyebrow" style="color:#c7ef9b">ELYVORA CREDITS · DEMO</p><div class="balance-value">◈ '+money(state.balance)+'</div><div class="balance-note">Virtual credits · no cash value or redemption.</div></div><div class="feature-icon" style="width:55px;height:55px;font-size:25px;background:rgba(196,242,138,.12);color:#d2f6a2">◈</div></div><div class="divider" style="background:rgba(255,255,255,.14)"></div><div class="balance-row"><span class="balance-note">A persistent simulated balance for signed-in members</span><span class="tag">LEVEL 01</span></div></section><div class="section-label"><span>Find your place</span><span class="tag">'+ownedIds.length+' OWNED</span></div><div class="three-col">'+economyProperties.map(x=>'<article class="card property-card"><div class="property-art"></div><div class="property-meta"><h3>'+safe(x.name)+'</h3><p>'+safe(x.place)+'<br>'+safe(x.desc)+'</p><div class="property-price"><b>◈ '+money(x.price)+'</b><button class="button-quiet" data-action="buy-property" data-id="'+safe(x.id)+'" '+(ownedIds.includes(x.id)?"disabled":"")+'>'+(ownedIds.includes(x.id)?"Owned ✓":"Acquire")+'</button></div></div></article>').join("")+'</div><section class="card card-pad"><div class="card-title"><h3>Recent activity</h3><span class="tag">'+(remoteEconomy?"ACCOUNT LEDGER":"LOCAL DEMO LEDGER")+'</span></div><div class="transaction-list">'+ledger.slice(0,8).map(t=>'<div class="transaction-row"><span class="transaction-icon">'+(t.type==="in"?"↙":"↗")+'</span><span><b>'+safe(t.label)+'</b><small>'+safe(t.detail)+' · '+safe(t.time)+'</small></span><strong class="'+(t.type==="in"?"positive":"negative")+'">'+(t.type==="in"?"+":"−")+'◈ '+money(t.amount)+'</strong></div>').join("")+'</div></section><div class="callout">ELYVORA credits and property are simulated in-app data only. They are not cryptocurrency, deposits, investments or real estate ownership, and cannot be redeemed for cash.</div></div>';
   }
   function profileView(){
-    const p=state.profile, mine=state.posts.filter(x=>x.handle==="@"+p.handle);
-    return pageHead("YOUR IDENTITY","Your profile.","Your story, your interests and the connections you're building.",'<button class="button-primary" data-action="edit-profile">Edit profile ↗</button>')+
-    '<div class="layout-grid"><div class="main-column"><section class="card" style="overflow:hidden"><div class="profile-cover"></div><div class="profile-summary">'+avatar(initials(p.name),"avatar-you")+'<div class="profile-copy"><h2>'+safe(p.name)+'</h2><p>@'+safe(p.handle)+' · '+safe(p.location)+'</p><span class="tag">'+safe(p.role)+'</span></div></div><div class="profile-bio">'+safe(p.bio)+'</div><div class="profile-stats"><div><b>'+mine.length+'</b><small>Posts</small></div></div></section><div class="section-label"><span>Your posts</span><button class="subtle-link" data-action="create-post">＋ Create post</button></div>'+(mine.length?mine.map(postCard).join(""):'<div class="card empty-state"><div class="empty-icon">✧</div><h3>Your story starts here</h3><p>Share a thought, an image or a moment with the ELYVORA community.</p><button class="button-primary" data-action="create-post">Create your first post</button></div>')+'</div><aside class="right-column"><section class="card card-pad"><div class="card-title"><h3>About you</h3><a data-action="edit-profile">Edit</a></div><div class="mini-list"><div class="mini-row"><span class="mini-icon">⌖</span><span><b>Based in</b><small>'+safe(p.location)+'</small></span></div><div class="mini-row"><span class="mini-icon">✧</span><span><b>Doing</b><small>'+safe(p.role)+'</small></span></div><div class="mini-row"><span class="mini-icon">◈</span><span><b>Virtual balance</b><small>◈ '+money(state.balance)+' demo credits</small></span></div></div></section><section class="card card-pad"><div class="card-title"><h3>Your journey</h3></div><div class="mini-list"><div class="mini-row"><span class="mini-icon">✦</span><span><b>Joined ELYVORA</b><small>Explorer · starter profile</small></span></div><div class="mini-row"><span class="mini-icon">▥</span><span><b>Career activities</b><small>'+state.jobsDone.length+' completed</small></span></div><div class="mini-row"><span class="mini-icon">⌂</span><span><b>Virtual properties</b><small>'+state.owned.length+' acquired</small></span></div></div></section></aside></div>';
+    const p=myProfileData||{...authUser,...state.profile,posts:[],followers:0,following:0};
+    const posts=(p.posts||[]).map(x=>postCard({id:x.id,name:p.displayName,handle:"@"+p.username,time:relativeTime(x.created_at),text:x.body,mediaType:x.media_type,image:x.media_url,likes:Number(x.likes||0),comments:Number(x.comments||0),liked:Boolean(x.liked),remote:true}));
+    const joined=p.createdAt?new Date(Number(p.createdAt)*1000).toLocaleDateString(undefined,{month:"long",year:"numeric"}):"—";
+    const interests=(p.interests||[]).map(x=>'<span class="tag">'+safe(x)+'</span>').join("");
+    const cover=p.coverImageUrl?'<div class="profile-cover" style="background-image:linear-gradient(0deg,rgba(8,15,22,.35),transparent),url(\''+safe(p.coverImageUrl)+'\');background-size:cover;background-position:center"></div>':'<div class="profile-cover"></div>';
+    const verification=p.emailVerified?'<span class="tag accent">EMAIL VERIFIED</span>':'<div class="callout account-warning"><b>Email not verified</b><p>Verify your email to help protect your account.</p><button class="button-quiet" data-action="resend-verification">Send verification email</button></div>';
+    return pageHead("YOUR IDENTITY","Your profile.","Manage your public identity and account information.",'<button class="button-quiet" data-action="privacy-settings">Privacy settings</button><button class="button-primary" data-action="edit-profile">Edit profile ↗</button>')+
+      '<div class="layout-grid"><div class="main-column"><section class="card profile-main-card" style="overflow:hidden">'+cover+'<div class="profile-summary">'+photoAvatar(p.avatarUrl,p.displayName,"avatar-you")+'<div class="profile-copy"><h2>'+safe(p.displayName||p.name)+'</h2><p>@'+safe(p.username||p.handle)+' · '+safe([p.city,p.country].filter(Boolean).join(", ")||p.location||"Location not shared")+'</p><span class="tag">'+safe(p.role||"ELYVORA MEMBER")+'</span></div></div><div class="profile-bio">'+safe(p.bio||"Add a biography so people can learn more about you.")+'</div><div class="profile-interests">'+(interests||'<span class="muted-copy">Add your interests in Edit profile.</span>')+'</div><div class="profile-stats"><div><b>'+(p.posts||[]).length+'</b><small>Posts</small></div><div><b>'+Number(p.followers||0)+'</b><small>Followers</small></div><div><b>'+Number(p.following||0)+'</b><small>Following</small></div></div></section>'+verification+'<div class="section-label"><span>Your posts</span><button class="subtle-link" data-action="create-post">＋ Create post</button></div>'+(posts.length?posts.join(""):'<div class="card empty-state"><div class="empty-icon">✧</div><h3>Your story starts here</h3><p>Share your first post with the ELYVORA community.</p><button class="button-primary" data-action="create-post">Create your first post</button></div>')+'</div><aside class="right-column"><section class="card card-pad"><div class="card-title"><h3>About you</h3><button class="subtle-link" data-action="edit-profile">Edit</button></div><div class="mini-list"><div class="mini-row"><span class="mini-icon">⌖</span><span><b>Country</b><small>'+safe(p.country||"Not set")+'</small></span></div><div class="mini-row"><span class="mini-icon">◎</span><span><b>City</b><small>'+safe(p.city||"Not set")+'</small></span></div><div class="mini-row"><span class="mini-icon">✦</span><span><b>Joined</b><small>'+safe(joined)+'</small></span></div><div class="mini-row"><span class="mini-icon">✉</span><span><b>Email</b><small>'+safe(authUser?.email||"")+'</small></span></div></div></section><section class="card card-pad"><div class="card-title"><h3>Account security</h3></div><p class="muted-copy">Your password is stored as a one-way PBKDF2 hash. Sessions are protected by HttpOnly cookies.</p><button class="button-quiet" data-action="forgot-password">Reset password</button><button class="button-quiet" data-action="privacy-settings">Manage privacy</button></section></aside></div>';
   }
   function render(){
     setHeader();
@@ -527,11 +572,31 @@
   }
   function closeModal(){modal.hidden=true;modalContent.innerHTML="";}
   function editProfile(){
-    openModal("Shape your profile",'<form id="profile-form"><div class="form-group"><label>DISPLAY NAME</label><input class="form-control" name="name" maxlength="50" required value="'+safe(state.profile.name)+'"></div><div class="form-group"><label>USERNAME</label><input class="form-control" name="handle" maxlength="24" required value="'+safe(state.profile.handle)+'"></div><div class="form-group"><label>YOUR BIO</label><textarea class="form-control textarea" name="bio" maxlength="220">'+safe(state.profile.bio)+'</textarea></div><div class="form-row"><div class="form-group"><label>LOCATION</label><input class="form-control" name="location" maxlength="60" value="'+safe(state.profile.location)+'"></div><div class="form-group"><label>WHAT YOU DO</label><input class="form-control" name="role" maxlength="60" value="'+safe(state.profile.role)+'"></div></div><div class="modal-footer"><button class="button-quiet" type="button" data-action="close-modal">Cancel</button><button class="button-primary" type="submit">Save profile</button></div></form>');
+    const p=state.profile;
+    openModal("Edit your profile",'<form id="profile-form"><div class="form-row"><div class="form-group"><label>FULL NAME</label><input class="form-control" name="name" maxlength="50" required value="'+safe(p.name)+'"></div><div class="form-group"><label>USERNAME</label><input class="form-control" name="handle" minlength="3" maxlength="24" pattern="[A-Za-z0-9_.]+" required value="'+safe(p.handle)+'"></div></div><div class="form-group"><label>BIOGRAPHY</label><textarea class="form-control textarea" name="bio" maxlength="220" placeholder="Introduce yourself to the community...">'+safe(p.bio)+'</textarea></div><div class="form-row"><div class="form-group"><label>COUNTRY</label><input class="form-control" name="country" maxlength="80" required value="'+safe(p.country||"")+'"></div><div class="form-group"><label>CITY</label><input class="form-control" name="city" maxlength="80" value="'+safe(p.city||"")+'"></div></div><div class="form-row"><div class="form-group"><label>WHAT YOU DO</label><input class="form-control" name="role" maxlength="80" value="'+safe(p.role)+'"></div><div class="form-group"><label>INTERESTS <span class="muted-copy">(comma separated)</span></label><input class="form-control" name="interests" maxlength="500" value="'+safe((p.interests||[]).join(", "))+'" placeholder="Design, music, travel..."></div></div><div class="form-group"><label>PROFILE PHOTO</label><input class="form-control" name="profilePhoto" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif"><small class="muted-copy">Square images work best. Maximum 1 MB.</small></div><div class="form-group"><label>COVER IMAGE</label><input class="form-control" name="coverPhoto" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif"><small class="muted-copy">Wide images work best. Maximum 1 MB.</small></div><div class="callout">Your profile changes are saved to your ELYVORA account and appear across the platform.</div><div class="modal-footer"><button class="button-quiet" type="button" data-action="close-modal">Cancel</button><button class="button-primary" type="submit">Save profile</button></div></form>',"YOUR IDENTITY");
+  }
+  function privacySettingsModal(){
+    if(!authUser){authModal("signin");return;}
+    const p=privacySettings||{profileVisibility:"public",contentVisibility:"public",messagePrivacy:"everyone",commentPrivacy:"everyone",showOnline:true,readReceipts:true};
+    const select=(name,label,value,options)=>'<div class="form-group"><label>'+label+'</label><select class="form-control" name="'+name+'">'+options.map(x=>'<option value="'+x[0]+'" '+(value===x[0]?"selected":"")+'>'+x[1]+'</option>').join("")+'</select></div>';
+    openModal("Privacy settings",'<form id="privacy-form">'+select("profileVisibility","WHO CAN VIEW YOUR PROFILE",p.profileVisibility,[["public","Everyone"],["followers","Followers only"],["private","Only you"]])+select("contentVisibility","WHO CAN VIEW YOUR CONTENT",p.contentVisibility,[["public","Everyone"],["followers","Followers only"],["private","Only you"]])+select("messagePrivacy","WHO CAN MESSAGE YOU",p.messagePrivacy,[["everyone","Everyone"],["followers","People you follow"],["none","No one"]])+select("commentPrivacy","WHO CAN COMMENT ON YOUR POSTS",p.commentPrivacy,[["everyone","Everyone"],["followers","People you follow"],["none","No one"]])+'<label class="setting-toggle"><input type="checkbox" name="showOnline" '+(p.showOnline?"checked":"")+'> Show my online status</label><label class="setting-toggle"><input type="checkbox" name="readReceipts" '+(p.readReceipts?"checked":"")+'> Allow read receipts</label><div class="callout">These preferences are enforced by the account API for profiles, feeds, comments and new private conversations.</div><div class="modal-footer"><button type="button" class="button-quiet" data-action="close-modal">Cancel</button><button type="submit" class="button-primary">Save privacy settings</button></div></form>',"ACCOUNT CONTROL");
   }
   function createPost(){
     const guidance=authUser?"Upload an image or short video (up to 1 MB in this first release), or paste a public HTTPS media link.":"This is a local demo post. Media files are previewed on this device only; sign in to publish them to ELYVORA.";
     openModal("Share with your world",'<form id="post-form"><div class="form-group"><label>WHAT&#39;S ON YOUR MIND?</label><textarea class="form-control textarea" name="text" maxlength="700" placeholder="Share an idea, a moment or something you discovered..." required></textarea></div><div class="form-group"><label>UPLOAD IMAGE OR VIDEO</label><input class="form-control" name="mediaFile" id="post-media-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"></div><div class="form-row"><div class="form-group"><label>MEDIA TYPE</label><select class="form-control" name="mediaType"><option value="image">Image</option><option value="video">Video</option></select></div><div class="form-group"><label>OR PUBLIC HTTPS MEDIA URL</label><input class="form-control" name="mediaUrl" type="url" placeholder="https://..."></div></div><div class="callout">'+safe(guidance)+'</div><div class="modal-footer"><button class="button-quiet" type="button" data-action="close-modal">Cancel</button><button class="button-primary" type="submit">Publish post ↗</button></div></form>');
+  }
+  async function viewMemberProfile(userId){
+    if(!authUser){authModal("signin");return;}
+    try{
+      const data=await apiRequest("/api/users/"+encodeURIComponent(userId)+"/profile"),p=data.profile;
+      const posts=(p.posts||[]).map(x=>'<div class="member-post"><small>'+relativeTime(x.created_at)+'</small><p>'+safe(x.body)+'</p></div>').join("");
+      const joined=p.createdAt?new Date(Number(p.createdAt)*1000).toLocaleDateString(undefined,{month:"long",year:"numeric"}):"";
+      const cover=p.coverImageUrl?'<div class="member-cover" style="background-image:url(\''+safe(p.coverImageUrl)+'\')"></div>':'<div class="member-cover"></div>';
+      openModal(p.displayName,"<div class=\"member-profile\">"+cover+'<div class="member-profile-heading">'+photoAvatar(p.avatarUrl,p.displayName,"avatar-you")+'<div><h3>'+safe(p.displayName)+'</h3><p>@'+safe(p.username)+'</p></div></div><p>'+safe(p.bio||"")+'</p><div class="profile-stats"><div><b>'+p.followers+'</b><small>Followers</small></div><div><b>'+p.following+'</b><small>Following</small></div></div><p class="muted-copy">'+safe([p.city,p.country].filter(Boolean).join(", "))+(joined?" · Joined "+safe(joined):"")+'</p><div class="profile-interests">'+(p.interests||[]).map(x=>'<span class="tag">'+safe(x)+'</span>').join("")+'</div><div class="member-actions">'+(p.isSelf?'<button class="button-primary" data-action="edit-profile">Edit profile</button>':'<button class="button-primary" data-action="'+(p.isFollowing?"unfollow-user":"follow-user")+'" data-id="'+safe(p.id)+'">'+(p.isFollowing?"Unfollow":"Follow")+'</button><button class="button-quiet" data-action="start-chat" data-id="'+safe(p.id)+'">Message</button><button class="button-quiet" data-action="report-user" data-id="'+safe(p.id)+'">Report</button><button class="button-quiet" data-action="block-user" data-id="'+safe(p.id)+'">Block</button>')+'</div><div class="section-label"><span>Public posts</span></div>'+(posts||'<p class="muted-copy">No posts are available to view.</p>')+'</div>',"ELYVORA MEMBER");
+    }catch(error){toast(error.message,true);}
+  }
+  function reportUserModal(userId){
+    openModal("Report this profile",'<form id="report-profile-form" data-id="'+safe(userId)+'"><div class="form-group"><label>REASON</label><select class="form-control" name="reason"><option value="spam">Spam</option><option value="harassment">Harassment</option><option value="hate">Hateful content</option><option value="misinformation">Misinformation</option><option value="other">Other</option></select></div><div class="form-group"><label>DETAILS (OPTIONAL)</label><textarea class="form-control textarea" name="details" maxlength="1000" placeholder="Tell us what happened..."></textarea></div><div class="modal-footer"><button type="button" class="button-quiet" data-action="close-modal">Cancel</button><button type="submit" class="button-primary">Submit report</button></div></form>',"SAFETY & COMMUNITY");
   }
   async function openNotifications(){
     if(!authUser){authModal("signin");toast("Sign in to view your notifications.");return;}
@@ -570,10 +635,20 @@
     if(!b)return;
     const a=b.dataset.action,id=b.dataset.id;
     if(a==="create-post")createPost();
-    else if(a==="account"){if(authUser){openModal("Sign out of ELYVORA",'<p class="muted-copy">You are signed in as <b>'+safe(authUser.email)+'</b>.</p><div class="modal-footer"><button class="button-quiet" data-action="close-modal">Stay signed in</button><button class="button-primary" data-action="logout">Sign out</button></div>');}else authModal("signin");}
+    else if(a==="account"){if(authUser){openModal("Account options",'<p class="muted-copy">Signed in as <b>'+safe(authUser.email)+'</b>.</p><div class="member-actions"><button class="button-quiet" data-action="edit-profile">Edit profile</button><button class="button-quiet" data-action="privacy-settings">Privacy settings</button><button class="button-quiet" data-action="forgot-password">Reset password</button></div><div class="modal-footer"><button class="button-quiet" data-action="close-modal">Close</button><button class="button-primary" data-action="logout">Sign out</button></div>');}else authModal("signin");}
     else if(a==="logout")logout();
     else if(a==="auth-switch")authModal(b.dataset.mode);
-    else if(a==="edit-profile")editProfile();
+    else if(a==="edit-profile"){if(!authUser){authModal("signin");return;}editProfile();}
+    else if(a==="forgot-password")forgotPasswordModal(authUser?.email||"");
+    else if(a==="resend-verification")resendVerification();
+    else if(a==="privacy-settings")privacySettingsModal();
+    else if(a==="view-profile")viewMemberProfile(id);
+    else if(a==="report-user")reportUserModal(id);
+    else if(a==="block-user"){
+      if(confirm("Block this member? They will no longer be able to interact with you through ELYVORA.")){
+        apiRequest("/api/users/"+encodeURIComponent(id)+"/block",{method:"POST",body:"{}"}).then(()=>{closeModal();toast("Member blocked.");if(currentView==="messages")go("messages");}).catch(err=>toast(err.message,true));
+      }
+    }
     else if(a==="close-modal"){if(callState)closeCall(true);else if(incomingCall)rejectCall();else closeModal();}
     else if(a==="dismiss-banner"){state.banner=false;save();setHeader();}
     else if(a==="like"){const p=state.posts.find(x=>x.id===id);if(p){if(p.remote&&authUser){apiRequest("/api/posts/"+encodeURIComponent(id)+"/like",{method:"POST",body:"{}"}).then(refreshFeed).then(render).catch(err=>toast(err.message,true));}else{p.liked=!p.liked;p.likes+=p.liked?1:-1;save();render();}}}
@@ -607,9 +682,10 @@
       save();render();
       toast(metric==="hunger"?"You enjoyed a meal.":metric==="energy"?"You took time to rest.":"You spent time connecting with your community.");
     }
-    else if(a==="follow-user"){
+    else if(a==="follow-user"||a==="unfollow-user"){
       if(!authUser){authModal("signin");return;}
-      apiRequest("/api/users/"+encodeURIComponent(id)+"/follow",{method:"POST",body:"{}"}).then(()=>{toast("You're now following this member.");b.textContent="Following ✓";b.disabled=true;}).catch(err=>toast(err.message,true));
+      const follow=a==="follow-user";
+      apiRequest("/api/users/"+encodeURIComponent(id)+"/follow",{method:follow?"POST":"DELETE",body:"{}"}).then(async()=>{toast(follow?"You're now following this member.":"You unfollowed this member.");if(myProfileData?.id)await refreshOwnProfile();if(discoverQuery.trim().length>=2)await searchDiscoverMembers(discoverQuery);render();}).catch(err=>toast(err.message,true));
     }
     else if(a==="visit-place")toast("Welcome to the "+b.dataset.name+" destination preview.");
     else if(a==="career"){
@@ -656,15 +732,43 @@
         state.posts.unshift({id:"p"+Date.now(),name:state.profile.name,handle:"@"+state.profile.handle,time:"Just now",text,art:mediaUrl?"none":fd.get("art"),image:mediaUrl,mediaType:mediaUrl?mediaType:null,likes:0,comments:0,liked:false});
         save();closeModal();go(currentView==="profile"?"profile":"home");toast("Your post is saved in this device's demo feed. Sign in to publish globally.");
       }
-    }else if(e.target.id==="profile-form"){
-      e.preventDefault();const fd=new FormData(e.target),previousHandle=state.profile.handle;
-      const nextProfile={...state.profile,name:String(fd.get("name")).trim(),handle:String(fd.get("handle")).trim().replace(/^@/,"").replace(/[^a-zA-Z0-9_.]/g,""),bio:String(fd.get("bio")).trim(),location:String(fd.get("location")).trim(),role:String(fd.get("role")).trim()};
-      if(authUser){
-        apiRequest("/api/profile",{method:"POST",body:JSON.stringify({displayName:nextProfile.name,username:nextProfile.handle,bio:nextProfile.bio,location:nextProfile.location,role:nextProfile.role})}).then(result=>{applyUser(result.user);save();closeModal();render();toast("Your profile has been updated.");}).catch(err=>toast(err.message,true));
-      }else{
-        state.profile=nextProfile;state.posts.forEach(p=>{if(p.handle==="@"+previousHandle){p.handle="@"+state.profile.handle;p.name=state.profile.name;}});
-        save();closeModal();render();toast("Your profile has been updated on this device.");
-      }
+        }else if(e.target.id==="profile-form"){
+      e.preventDefault();
+      if(!authUser){authModal("signin");return;}
+      const form=e.target,fd=new FormData(form),button=form.querySelector('button[type="submit"]');
+      const upload=async(file)=>{if(!(file instanceof File)||!file.size)return null;if(file.size>1_000_000)throw new Error("Profile images must be 1 MB or smaller until larger media storage is enabled.");return await uploadMediaFile(file);};
+      if(button){button.disabled=true;button.textContent="Saving…";}
+      (async()=>{
+        const photo=await upload(fd.get("profilePhoto")),cover=await upload(fd.get("coverPhoto"));
+        const interests=String(fd.get("interests")||"").split(",").map(x=>x.trim()).filter(Boolean).slice(0,20);
+        const next={
+          displayName:String(fd.get("name")||"").trim(),username:String(fd.get("handle")||"").trim().replace(/^@/,"").toLowerCase(),
+          bio:String(fd.get("bio")||"").trim(),role:String(fd.get("role")||"").trim(),
+          country:String(fd.get("country")||"").trim(),city:String(fd.get("city")||"").trim(),
+          location:[String(fd.get("city")||"").trim(),String(fd.get("country")||"").trim()].filter(Boolean).join(", "),
+          interests,avatarUrl:photo?.url||state.profile.avatarUrl||null,coverImageUrl:cover?.url||state.profile.coverImageUrl||null
+        };
+        const result=await apiRequest("/api/profile",{method:"POST",body:JSON.stringify(next)});
+        applyUser(result.user);await refreshOwnProfile();closeModal();render();toast("Your profile has been saved.");
+      })().catch(err=>{toast(err.message,true);if(button){button.disabled=false;button.textContent="Save profile";}});
+    }else if(e.target.id==="auth-forgot-form"){
+      e.preventDefault();const email=String(new FormData(e.target).get("email")||"").trim();
+      try{const result=await apiRequest("/api/auth/password/forgot",{method:"POST",body:JSON.stringify({email})});closeModal();toast(result.deliveryConfigured?"If the email matches an account, a reset link is on its way.":"Email delivery is not configured yet. Password reset cannot send an email until the service is connected.",!result.deliveryConfigured);}
+      catch(err){toast(err.message,true);}
+    }else if(e.target.id==="auth-reset-form"){
+      e.preventDefault();const fd=new FormData(e.target),password=String(fd.get("password")||""),confirmPassword=String(fd.get("confirmPassword")||"");
+      if(password!==confirmPassword){toast("The passwords do not match.",true);return;}
+      try{await apiRequest("/api/auth/password/reset",{method:"POST",body:JSON.stringify({token:e.target.dataset.token,password})});history.replaceState({},document.title,location.pathname+location.hash);closeModal();authModal("signin");toast("Password updated. Sign in with your new password.");}
+      catch(err){toast(err.message,true);}
+    }else if(e.target.id==="privacy-form"){
+      e.preventDefault();const fd=new FormData(e.target);
+      const payload={profileVisibility:fd.get("profileVisibility"),contentVisibility:fd.get("contentVisibility"),messagePrivacy:fd.get("messagePrivacy"),commentPrivacy:fd.get("commentPrivacy"),showOnline:fd.has("showOnline"),readReceipts:fd.has("readReceipts")};
+      try{const result=await apiRequest("/api/privacy",{method:"POST",body:JSON.stringify(payload)});privacySettings=result.privacy;closeModal();render();toast("Your privacy preferences have been saved.");}
+      catch(err){toast(err.message,true);}
+    }else if(e.target.id==="report-profile-form"){
+      e.preventDefault();const fd=new FormData(e.target),targetId=e.target.dataset.id;
+      try{await apiRequest("/api/reports",{method:"POST",body:JSON.stringify({targetType:"user",targetId,reason:fd.get("reason"),details:fd.get("details")})});closeModal();toast("Thank you. Your report has been submitted for review.");}
+      catch(err){toast(err.message,true);}
     }else if(e.target.id==="chat-form"){
       e.preventDefault();const input=document.querySelector("#chat-input"),text=input.value.trim();if(!text)return;
       if(authUser&&activeConversationId){
