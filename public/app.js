@@ -20,6 +20,10 @@
     banner:true
   };
   let state = load();
+  let authUser = null;
+  let remoteFeedLoaded = false;
+  let remoteEconomy = null;
+  let remoteJobs = null;
   let currentView = "home";
   let discoverFilter = "All";
   let discoverQuery = "";
