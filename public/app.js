@@ -39,6 +39,63 @@
     }catch{return structuredClone(starter);}
   }
   function save(){try{localStorage.setItem(STORE,JSON.stringify(state));}catch{}}
+  async function apiRequest(path, options={}){
+    const headers={"Accept":"application/json",...(options.body?{"Content-Type":"application/json"}:{}),...(options.headers||{})};
+    const response=await fetch(path,{credentials:"same-origin",...options,headers});
+    let data={};try{data=await response.json();}catch{}
+    if(!response.ok)throw new Error(data.error?.message||"The request could not be completed.");
+    return data;
+  }
+  function applyUser(user){
+    authUser=user;
+    state.profile={...state.profile,name:user.displayName||state.profile.name,handle:user.username||state.profile.handle,bio:user.bio||"",location:user.location||"",role:user.role||""};
+    save();
+  }
+  function relativeTime(seconds){
+    const age=Math.max(0,Math.floor(Date.now()/1000-Number(seconds||0)));
+    if(age<60)return "Just now";if(age<3600)return Math.floor(age/60)+" min ago";if(age<86400)return Math.floor(age/3600)+" hr ago";return Math.floor(age/86400)+" d ago";
+  }
+  async function refreshFeed(){
+    const data=await apiRequest("/api/feed");
+    remoteFeedLoaded=true;
+    state.posts=(data.posts||[]).map(p=>({id:p.id,name:p.author?.name||p.display_name,handle:"@"+(p.author?.username||p.username),time:relativeTime(p.created_at),text:p.body,art:"none",image:p.media_url||"",likes:Number(p.likes||0),comments:Number(p.comments||0),liked:Boolean(p.liked),remote:true}));
+  }
+  async function refreshEconomy(){
+    if(!authUser){remoteEconomy=null;return;}
+    remoteEconomy=await apiRequest("/api/economy");
+    state.balance=remoteEconomy.balance;
+  }
+  async function refreshJobs(){
+    const data=await apiRequest("/api/careers");
+    remoteJobs=data.jobs||[];
+  }
+  async function initRemote(){
+    try{
+      await apiRequest("/api/health");
+      const me=await apiRequest("/api/me");
+      if(me.user){applyUser(me.user);await Promise.all([refreshFeed(),refreshEconomy(),refreshJobs()]);}
+      else{await refreshJobs();}
+      render();
+    }catch(error){console.warn("ELYVORA remote services are not ready:",error.message);}
+  }
+  function authModal(mode="signin"){
+    const signup=mode==="signup";
+    const fields=signup?'<div class="form-group"><label>YOUR NAME</label><input class="form-control" name="displayName" required minlength="2" maxlength="50" placeholder="Your full name"></div><div class="form-group"><label>USERNAME</label><input class="form-control" name="username" required minlength="3" maxlength="24" pattern="[A-Za-z0-9_.]+" placeholder="yourname"></div><div class="form-group"><label>EMAIL ADDRESS</label><input class="form-control" type="email" name="email" required maxlength="254" placeholder="you@example.com"></div>':'<div class="form-group"><label>EMAIL OR USERNAME</label><input class="form-control" name="identifier" required autocomplete="username" placeholder="Email address or username"></div>';
+    openModal(signup?"Create your ELYVORA account":"Welcome back",'<form id="auth-form" data-mode="'+mode+'">'+fields+'<div class="form-group"><label>PASSWORD</label><input class="form-control" type="password" name="password" required minlength="'+(signup?"10":"1")+'" maxlength="128" autocomplete="'+(signup?"new-password":"current-password")+'" placeholder="'+(signup?"At least 10 characters":"Your password")+'"></div><div class="callout">'+(signup?"Your account will be saved securely on ELYVORA. Add a working email address; email verification and recovery are part of the next release.":"Your private session is protected by an HttpOnly cookie.")+'</div><div class="modal-footer"><button class="button-quiet" type="button" data-action="auth-switch" data-mode="'+(signup?"signin":"signup")+'">'+(signup?"Already a member? Sign in":"New to ELYVORA? Create account")+'</button><button class="button-primary" type="submit">'+(signup?"Create account":"Sign in")+'</button></div></form>',"ELYVORA ACCOUNT");
+  }
+  async function submitAuth(form){
+    const mode=form.dataset.mode,fd=new FormData(form);
+    const payload=mode==="signup"?{displayName:fd.get("displayName"),username:fd.get("username"),email:fd.get("email"),password:fd.get("password")}:{identifier:fd.get("identifier"),password:fd.get("password")};
+    const button=form.querySelector('button[type="submit"]');if(button){button.disabled=true;button.textContent="Please wait…";}
+    try{
+      const result=await apiRequest(mode==="signup"?"/api/auth/register":"/api/auth/login",{method:"POST",body:JSON.stringify(payload)});
+      applyUser(result.user);await Promise.all([refreshFeed(),refreshEconomy(),refreshJobs()]);closeModal();render();toast(mode==="signup"?"Your ELYVORA account is ready.":"Welcome back to ELYVORA.");
+    }catch(error){toast(error.message,true);if(button){button.disabled=false;button.textContent=mode==="signup"?"Create account":"Sign in";}}
+  }
+  async function logout(){
+    try{await apiRequest("/api/auth/logout",{method:"POST",body:"{}"});}catch{}
+    authUser=null;remoteEconomy=null;remoteJobs=null;remoteFeedLoaded=false;state.posts=structuredClone(starter.posts);state.profile=structuredClone(starter.profile);state.balance=starter.balance;save();closeModal();render();toast("You have signed out.");
+  }
   function money(n){return new Intl.NumberFormat("en-US").format(n);}
   function avatar(letter, extra=""){return '<span class="avatar '+extra+'">'+safe(letter||"E")+"</span>";}
   function initials(name){return (name||"E").trim().split(/\s+/).slice(0,2).map(x=>x[0]).join("").toUpperCase();}
