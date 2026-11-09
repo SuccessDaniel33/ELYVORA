@@ -280,6 +280,18 @@
   function createPost(){
     openModal("Share with your world",'<form id="post-form"><div class="form-group"><label>WHAT&#39;S ON YOUR MIND?</label><textarea class="form-control textarea" name="text" maxlength="700" placeholder="Share an idea, a moment or something you discovered..." required></textarea></div><div class="form-row"><div class="form-group"><label>POST STYLE</label><select class="form-control" name="art"><option value="city">City moment</option><option value="creative">Creative thought</option><option value="community">Community note</option><option value="none">Text only</option></select></div><div class="form-group"><label>IMAGE URL (OPTIONAL)</label><input class="form-control" name="image" type="url" placeholder="https://..."></div></div><div class="callout">Your post will be added to this device&#39;s demo feed. Public community publishing will be enabled when accounts and backend storage are connected.</div><div class="modal-footer"><button class="button-quiet" type="button" data-action="close-modal">Cancel</button><button class="button-primary" type="submit">Publish post ↗</button></div></form>');
   }
+  async function openComments(postId){
+    const post=state.posts.find(p=>p.id===postId);
+    if(!post)return;
+    let comments=[];
+    if(post.remote){
+      try{const data=await apiRequest("/api/posts/"+encodeURIComponent(postId)+"/comments");comments=data.comments||[];}
+      catch(error){toast(error.message,true);return;}
+    }
+    const list=comments.length?comments.map(c=>'<div class="mini-row" style="align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)">'+avatar(initials(c.display_name||c.author?.name))+'<span><b>'+safe(c.display_name||c.author?.name||"Member")+'</b><small>'+safe(c.body||"")+' · '+relativeTime(c.created_at)+'</small></span></div>').join(""):'<p class="muted-copy">No comments yet. Start a thoughtful conversation.</p>';
+    const composer=authUser&&post.remote?'<form id="comment-form" data-post="'+safe(postId)+'"><div class="form-group"><label>ADD A COMMENT</label><textarea class="form-control" name="body" rows="3" maxlength="1500" placeholder="Write something kind and useful..." required></textarea></div><div class="modal-footer"><button class="button-primary" type="submit">Post comment ↗</button></div></form>':post.remote?'<div class="callout">Sign in to join the conversation on this post.</div><div class="modal-footer"><button class="button-primary" data-action="account">Sign in</button></div>':'<div class="callout">Comments for local demo posts are not shared with other members yet.</div>';
+    openModal("Conversation",'<div class="muted-copy" style="margin-bottom:13px">'+safe(post.text)+'</div><div id="comment-list">'+list+'</div><div class="divider"></div>'+composer,"POST COMMENTS");
+  }
   function addTransaction(label,amount,type,detail){
     state.transactions.unshift({label,amount,type,detail,time:"Just now"});
   }
