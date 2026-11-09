@@ -1,61 +1,82 @@
 # ELYVORA
 
-ELYVORA is an original social-world platform: a global place to connect, share, discover places, develop careers and participate in a simulated digital economy.
+ELYVORA is an original global social-world platform: a place to connect, share, discover a Lagos-inspired city, develop careers and participate in a simulated digital economy.
 
-This repository contains the first account-backed web application release. It is designed as a mobile-friendly app experience rather than a marketing-only landing page.
+The app combines a social feed and private messaging with a city/world interface and a life-simulation layer. It is independently designed and implemented; it does not use LagosLife's source code, brand identity or proprietary assets.
 
 ## Implemented in this release
 
-- Responsive application shell with desktop sidebar and mobile navigation
-- Account registration and sign-in using password hashing and server-side sessions
-- D1-backed member profiles and profile editing
-- Persistent public social feed, post publishing, appreciations and comments
-- Member search and private one-to-one conversations
-- D1-persisted text messages with per-conversation WebSocket delivery through Durable Objects
+- Responsive web application with a warm, city-inspired visual system and original ELYVORA city-map illustration
+- Home social feed with posts, reactions and comments
+- Account registration, sign-in and D1-backed member profiles
+- Member search, following and notifications
+- Private conversations with persistent text messages and per-conversation WebSocket delivery
+- Image and video post uploads and chat attachments
+- Voice-note recording with browser MediaRecorder and persistent chat delivery
+- One-to-one browser voice and video calls using WebRTC with Durable Object signaling
+- City exploration view with Lagos-inspired districts and destination concepts
+- My Life view with character overview and six local demo needs
 - Career listings and authenticated applications
-- Persistent virtual wallet, transaction ledger and virtual property acquisitions
-- Database groundwork for follows, notifications and user reports
-- Local demo feed and sample conversations for visitors who have not signed in
-- Cloudflare Workers Builds connected to GitHub for deployments from `main`
+- Persistent simulated wallet, transaction ledger and virtual property acquisitions
+- GitHub-triggered Cloudflare Workers Builds from the `main` branch
 
-## Important current limitations
+## Media storage limits
 
-This is an early product release, not a finished A-to-Z global platform.
+R2 is not currently enabled on the connected Cloudflare account. Until it is activated, this release uses a bounded D1-backed media store for small files:
 
-- Email verification, password reset and social sign-in are not yet implemented.
-- Voice notes, audio calling and video calling are not live. Real-time chat currently supports text messages only.
-- Image/video file uploads are not live. The Cloudflare account's R2 service still needs to be enabled and configured.
-- The World map is a visual concept; live map tiles, geocoding, routes, geolocation and 3D city environments are not connected.
-- Career opportunities are starter listings. Employer onboarding, verification, contracts, payroll and real payment processing are not implemented.
-- ELYVORA credits and property are a simulated in-app economy only. They are not money, cryptocurrency, investments or legally recognized property ownership, and cannot be redeemed.
-- Moderation/reporting data and API groundwork exist, but a full moderation console, abuse-prevention workflow and human review process are still needed.
+- Supported images: JPEG, PNG, WebP, GIF and AVIF
+- Supported video: MP4, WebM and QuickTime
+- Supported audio: WebM, OGG, MP4 and MPEG
+- Maximum upload size: 1 MB per file
+
+D1 is not the intended storage layer for a large social media platform. Enable an R2 subscription in Cloudflare Dashboard → Storage & databases → R2 → Overview, then create and bind an R2 bucket and migrate media objects before increasing upload limits. Cloudflare documents R2 activation through the Dashboard: https://developers.cloudflare.com/r2/get-started/
+
+## Voice and video call notes
+
+- One-to-one calls use the browser's microphone/camera and WebRTC peer connections.
+- Signaling is authenticated and routed through a conversation-specific Durable Object WebSocket.
+- Both members must be signed in, have the same conversation open and grant the browser's media permissions.
+- This initial implementation uses public STUN servers. Some restrictive corporate, mobile-carrier or symmetric-NAT networks require a TURN relay; production call reliability needs a managed TURN service or a suitable SFU.
+- Group calling, call history, incoming-call presence across unopened conversations, screen sharing and background-call support are not implemented yet.
+
+## City and life simulation notes
+
+The current map is an original illustrated Lagos-inspired city concept with initial district labels. It is not a live street map or a walkable 3D world yet. Live geolocation, route planning, 3D environments, city venues, shared events and persistent simulation time remain later development stages.
+
+The My Life needs meters are a local browser simulation preview. A persistent character system with server-backed needs, inventory, transport, housing and world time has not been completed.
+
+## Economy and jobs
+
+Career listings and applications are starter platform data. Employer onboarding, verification, contracts, payroll and real compensation are not implemented.
+
+ELYVORA credits and property are simulated in-app data. They are not money, cryptocurrency, deposits, investments or legally recognized real estate, and cannot be redeemed for cash.
 
 ## Security and privacy foundation
 
-- Passwords are stored as PBKDF2-derived hashes with per-account random salts.
+- Passwords use PBKDF2-derived hashes with per-account random salts.
 - Sessions are opaque random tokens stored as SHA-256 hashes in D1 and delivered in HttpOnly, SameSite cookies.
 - Mutating API calls require a same-origin Origin header.
-- API responses are not cached.
-- Basic security headers and a restrictive Content Security Policy are applied.
-- Authentication attempts are rate limited per hashed client address.
-- Conversation WebSockets are only opened after the Worker verifies the signed-in member belongs to that conversation.
+- Conversation WebSockets are opened only after the Worker verifies the signed-in member belongs to the conversation.
+- Uploaded media is private until referenced by a public post or a conversation message.
+- Basic security headers, a restrictive Content Security Policy and authentication rate limits are applied.
 
-Before public launch, complete email verification and recovery, bot protection, stronger rate limiting, data deletion/export, moderation operations, privacy/legal documents, independent security testing and a production incident plan.
+Before broad public launch, complete email verification and recovery, bot protection, more comprehensive rate limiting, data deletion/export, moderation operations, privacy/legal documents, independent security testing, TURN/SFU capacity planning and a production incident plan.
 
 ## Project structure
 
-- `public/index.html` — application entry point
-- `public/app.css` — responsive interface and design system
-- `public/app.js` — client interactions and API integration
-- `public/favicon.svg` — ELYVORA app icon
-- `src/index.js` — Cloudflare Worker entry point and response headers
-- `src/api.js` — account, social, messaging, career and economy API
-- `src/chat-room.js` — per-conversation Durable Object WebSocket coordinator
-- `migrations/0001_core.sql` — initial D1 database schema
-- `wrangler.jsonc` — Cloudflare Workers, D1 and Durable Object configuration
-- `package.json` — development, syntax checks and deployment scripts
+- `public/index.html` — app entry point
+- `public/app.css` — responsive design system and city visual language
+- `public/app.js` — app navigation, social interactions, media uploads and WebRTC client
+- `public/city-map.svg` — original ELYVORA city illustration
+- `public/favicon.svg` — ELYVORA icon
+- `src/index.js` — Cloudflare Worker entry point and security headers
+- `src/api.js` — auth, profiles, social, media, chat, career and economy API
+- `src/chat-room.js` — per-conversation Durable Object for text delivery and WebRTC signaling
+- `migrations/0001_core.sql` — core D1 schema
+- `migrations/0002_media.sql` — media table migration
+- `wrangler.jsonc` — Workers, D1 and Durable Object configuration
 
-The Worker ensures the versioned core schema exists on the first API request using its D1 binding. The SQL migration is also included for managed migration workflows.
+The Worker applies the current schema version through its D1 binding when the API is first called. SQL migrations are also included for managed migration workflows.
 
 ## Run locally
 
@@ -66,13 +87,13 @@ npm install
 npm run dev
 ```
 
-Run syntax validation:
+Syntax validation:
 
 ```bash
 npm run check
 ```
 
-## Deploy
+Deploy:
 
 ```bash
 npm run deploy
@@ -87,6 +108,4 @@ Cloudflare Workers Builds is connected to `SuccessDaniel33/ELYVORA`:
 - Build command: `npm run check`
 - Deploy command: `npx wrangler deploy`
 
-Every push to `main` runs the JavaScript syntax checks and deploys the Worker.
-
-ELYVORA's implementation, interface and brand assets are developed independently.
+Every push to `main` runs JavaScript syntax validation before deploying the Worker.
