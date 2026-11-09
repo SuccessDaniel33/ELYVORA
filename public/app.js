@@ -24,6 +24,7 @@
   let remoteFeedLoaded = false;
   let remoteEconomy = null;
   let remoteJobs = null;
+  let remoteUsers = [];
   let remoteConversations = null;
   let remoteMessages = [];
   let activeConversationId = null;
