@@ -329,9 +329,12 @@ export async function handleApi(request, env) {
       const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
       const rows=await env.DB.prepare(`SELECT c.id,c.kind,c.title,c.updated_at,
         (SELECT m.body FROM messages m WHERE m.conversation_id=c.id AND m.deleted_at IS NULL ORDER BY m.created_at DESC LIMIT 1) AS last_message,
-        (SELECT m.created_at FROM messages m WHERE m.conversation_id=c.id AND m.deleted_at IS NULL ORDER BY m.created_at DESC LIMIT 1) AS last_message_at
+        (SELECT m.created_at FROM messages m WHERE m.conversation_id=c.id AND m.deleted_at IS NULL ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
+        (SELECT u.id FROM conversation_members cm2 JOIN users u ON u.id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_user_id,
+        (SELECT u.display_name FROM conversation_members cm2 JOIN users u ON u.id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_user_name,
+        (SELECT u.username FROM conversation_members cm2 JOIN users u ON u.id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_username
         FROM conversations c JOIN conversation_members cm ON cm.conversation_id=c.id
-        WHERE cm.user_id=? ORDER BY COALESCE(last_message_at,c.updated_at) DESC LIMIT 50`).bind(user.id).all();
+        WHERE cm.user_id=? ORDER BY COALESCE(last_message_at,c.updated_at) DESC LIMIT 50`).bind(user.id,user.id,user.id,user.id).all();
       return json({conversations:rows.results||[]});
     }
     if(method==="POST"&&path==="/api/conversations"){
