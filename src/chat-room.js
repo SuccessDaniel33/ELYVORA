@@ -51,10 +51,47 @@ export class ChatRoom extends DurableObject {
   }
 
   async webSocketMessage(socket, message) {
-    // Clients may send lightweight keep-alives only; message content is always
-    // persisted through the authenticated API before it is broadcast to peers.
     if (message === "ping") {
       try { socket.send("pong"); } catch {}
+      return;
+    }
+    if (typeof message !== "string" || message.length > 32_000) return;
+
+    let incoming;
+    try { incoming = JSON.parse(message); } catch { return; }
+    const sender = socket.deserializeAttachment();
+    if (!sender?.userId) return;
+
+    const allowed = new Set(["call-offer","call-answer","call-ice","call-reject","call-hangup","call-busy"]);
+    if (!allowed.has(incoming?.type)) return;
+    if (typeof incoming.callId !== "string" || incoming.callId.length > 80) return;
+
+    const event = { type: incoming.type, callId: incoming.callId, fromUserId: sender.userId };
+    if (incoming.targetUserId && typeof incoming.targetUserId === "string") event.targetUserId = incoming.targetUserId;
+
+    if (incoming.type === "call-offer") {
+      if (!["audio","video"].includes(incoming.kind)) return;
+      if (!incoming.description || incoming.description.type !== "offer" || typeof incoming.description.sdp !== "string" || incoming.description.sdp.length > 24_000) return;
+      event.kind = incoming.kind;
+      event.description = incoming.description;
+    } else if (incoming.type === "call-answer") {
+      if (!incoming.description || incoming.description.type !== "answer" || typeof incoming.description.sdp !== "string" || incoming.description.sdp.length > 24_000) return;
+      event.description = incoming.description;
+    } else if (incoming.type === "call-ice") {
+      const candidate = incoming.candidate;
+      if (!candidate || typeof candidate.candidate !== "string" || candidate.candidate.length > 4_000) return;
+      event.candidate = candidate;
+    } else if (incoming.type === "call-reject" || incoming.type === "call-busy") {
+      event.reason = incoming.type === "call-busy" ? "busy" : "rejected";
+    }
+
+    const payload = JSON.stringify(event);
+    for (const peer of this.ctx.getWebSockets("members")) {
+      if (peer === socket || peer.readyState !== WebSocket.OPEN) continue;
+      const recipient = peer.deserializeAttachment();
+      if (!recipient?.userId || recipient.userId === sender.userId) continue;
+      if (event.targetUserId && recipient.userId !== event.targetUserId) continue;
+      try { peer.send(payload); } catch (error) { console.warn("ELYVORA call signal delivery failed:", error); }
     }
   }
 
