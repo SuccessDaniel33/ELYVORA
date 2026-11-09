@@ -72,6 +72,51 @@
     const data=await apiRequest("/api/careers");
     remoteJobs=data.jobs||[];
   }
+  async function refreshMessages(conversationId){
+    if(!conversationId){remoteMessages=[];return;}
+    const data=await apiRequest("/api/conversations/"+encodeURIComponent(conversationId)+"/messages");
+    remoteMessages=data.messages||[];
+  }
+  async function refreshConversations(){
+    if(!authUser){remoteConversations=null;remoteMessages=[];activeConversationId=null;return;}
+    const data=await apiRequest("/api/conversations");
+    remoteConversations=data.conversations||[];
+    if(!activeConversationId||!remoteConversations.some(c=>c.id===activeConversationId)){
+      activeConversationId=remoteConversations[0]?.id||null;
+    }
+    await refreshMessages(activeConversationId);
+  }
+  async function openConversation(conversationId){
+    activeConversationId=conversationId;
+    await refreshMessages(conversationId);
+    render();
+  }
+  async function beginConversation(recipientId){
+    try{
+      const result=await apiRequest("/api/conversations",{method:"POST",body:JSON.stringify({recipientId})});
+      activeConversationId=result.conversationId;
+      await refreshConversations();
+      if(result.conversationId)activeConversationId=result.conversationId;
+      await refreshMessages(activeConversationId);
+      closeModal();go("messages");render();
+      toast(result.existing?"Conversation opened.":"Conversation started.");
+    }catch(error){toast(error.message,true);}
+  }
+  async function searchMembers(query){
+    const target=document.querySelector("#member-results");
+    if(!target)return;
+    const q=query.trim();
+    if(q.length<2){target.innerHTML='<p class="muted-copy">Enter at least two characters to find ELYVORA members.</p>';return;}
+    try{
+      const data=await apiRequest("/api/users?q="+encodeURIComponent(q));
+      if(!target.isConnected)return;
+      target.innerHTML=(data.users||[]).map(u=>'<div class="mini-row" style="padding:10px 0;border-bottom:1px solid var(--line)">'+avatar(initials(u.display_name))+'<span><b>'+safe(u.display_name)+'</b><small>@'+safe(u.username)+' · '+safe(u.location||"ELYVORA member")+'</small></span><button class="button-quiet" data-action="start-chat" data-id="'+safe(u.id)+'">Message</button></div>').join("")||(data.users||[]).length===0?'<p class="muted-copy">No members found for that search.</p>':target.innerHTML;
+    }catch(error){target.innerHTML='<p class="muted-copy">'+safe(error.message)+'</p>';}
+  }
+  function newChatModal(){
+    if(!authUser){authModal("signin");return;}
+    openModal("Find an ELYVORA member",'<div class="form-group"><label>SEARCH MEMBERS</label><input class="form-control" id="new-chat-search" placeholder="Search by name or username..." autocomplete="off"></div><div id="member-results" class="mini-list"><p class="muted-copy">Search for someone to start a private conversation.</p></div>',"ELYVORA CONNECT");
+  }
   async function initRemote(){
     try{
       await apiRequest("/api/health");
