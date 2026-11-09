@@ -232,7 +232,7 @@
     try{
       await waitForChatSocket();
       const localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:data.kind==="video"});
-      callState={callId:data.callId,kind:data.kind,role:"receiver",targetUserId:data.fromUserId,remoteName:activeChatPartner()?.other_user_name||"ELYVORA member",localStream,remoteStream:new MediaStream(),pendingCandidates:[],peer:null};
+      callState={callId:data.callId,kind:data.kind,role:"receiver",targetUserId:data.fromUserId,remoteName:activeChatPartner()?.other_user_name||"ELYVORA member",localStream,remoteStream:new MediaStream(),pendingCandidates:data.pendingCandidates||[],peer:null};
       const peer=createCallPeer();
       for(const track of localStream.getTracks())peer.addTrack(track,localStream);
       await peer.setRemoteDescription(new RTCSessionDescription(data.description));
@@ -250,6 +250,11 @@
   }
   async function handleCallSignal(data){
     if(data.type==="call-offer"){showIncomingCall(data);return;}
+    if(data.type==="call-ice"&&incomingCall?.callId===data.callId&&data.candidate){
+      incomingCall.pendingCandidates=incomingCall.pendingCandidates||[];
+      incomingCall.pendingCandidates.push(data.candidate);
+      return;
+    }
     if(!callState||data.callId!==callState.callId)return;
     if(data.type==="call-answer"&&callState.role==="caller"){
       try{
