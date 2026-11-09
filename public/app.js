@@ -173,8 +173,13 @@
     callState.remoteStream=new MediaStream();
     peer.ontrack=event=>{
       const streams=event.streams||[];
-      if(streams[0])for(const track of streams[0].getTracks())if(!callState.remoteStream.getTracks().some(t=>t.id===track.id))callState.remoteStream.addTrack(track);
-      else if(event.track)callState.remoteStream.addTrack(event.track);
+      if(streams[0]){
+        for(const track of streams[0].getTracks()){
+          if(!callState.remoteStream.getTracks().some(t=>t.id===track.id))callState.remoteStream.addTrack(track);
+        }
+      }else if(event.track&&!callState.remoteStream.getTracks().some(t=>t.id===event.track.id)){
+        callState.remoteStream.addTrack(event.track);
+      }
       attachCallMedia();
       updateCallStatus("Connected");
     };
