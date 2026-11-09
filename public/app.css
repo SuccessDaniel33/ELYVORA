@@ -178,3 +178,35 @@ body{background:radial-gradient(ellipse at 78% -8%,rgba(183,211,152,.34),transpa
  .greeting-banner{background:linear-gradient(90deg,rgba(236,244,225,.96),rgba(236,244,225,.7)),url('/city-map.svg') center/cover,#e3eddc}
  .inbox-list{border-bottom-color:#e3e9df}
 }
+
+.city-map-panel{position:relative;overflow:hidden;border:1px solid #d4e4d0;border-radius:19px;background:#e8efdf;box-shadow:0 14px 35px rgba(42,82,54,.09)}
+.city-map-image{display:block;width:100%;height:clamp(280px,38vw,500px);object-fit:cover;object-position:center}
+.city-map-top{position:absolute;top:15px;left:17px;right:17px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.map-live{display:inline-flex;align-items:center;gap:8px;padding:8px 11px;border:1px solid rgba(255,255,255,.7);border-radius:9px;background:rgba(255,255,248,.85);color:#386146;font-size:9px;font-weight:800;letter-spacing:.12em;backdrop-filter:blur(9px)}
+.map-live i{width:7px;height:7px;border-radius:50%;background:#2c9b68;box-shadow:0 0 0 4px rgba(44,155,104,.14)}
+.city-map-footer{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:flex-end;justify-content:space-between;gap:18px;padding:25px 23px 20px;background:linear-gradient(0deg,rgba(241,246,232,.98),rgba(241,246,232,.91) 68%,transparent)}
+.city-map-footer h2{margin:0;font:800 clamp(20px,2.6vw,29px) Manrope,sans-serif;letter-spacing:-.045em;color:#1d4a32}
+.city-map-footer p:not(.eyebrow){margin:7px 0 0;max-width:460px;color:#637a68;font-size:10px;line-height:1.6}
+.city-stats-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.city-stat{padding:14px 17px}
+.city-stat b{display:block;font:800 22px Manrope;color:#2a825b}
+.city-stat small{display:block;margin-top:3px;color:#7b8e7e;font-size:9px}
+.district-card{display:flex;gap:14px;padding:17px;align-items:flex-start}
+.district-icon{width:42px;height:42px;flex:0 0 auto;border-radius:14px;display:grid;place-items:center;background:#e4f1e4;color:#25885c;font-size:19px}
+.district-main{min-width:0;flex:1}
+.district-main .eyebrow{margin:2px 0 5px;font-size:8px}
+.district-main h3{margin:0;color:#294832;font:700 14px Manrope}
+.district-main>small{display:block;margin-top:4px;color:#8a998c;font-size:9px}
+.district-main p{margin:10px 0 12px;color:#718476;font-size:10px;line-height:1.65}
+.district-main .button-quiet{font-size:9px;padding:8px 10px}
+@media(max-width:650px){
+ .city-map-image{height:300px;object-position:center}
+ .city-map-footer{padding:20px 14px 14px;display:block}
+ .city-map-footer h2{font-size:20px;max-width:300px}
+ .city-map-footer p:not(.eyebrow){max-width:300px}
+ .city-map-footer .button-primary{margin-top:12px}
+ .city-stats-row{gap:7px}
+ .city-stat{padding:11px 10px}
+ .city-stat b{font-size:19px}
+ .city-stat small{font-size:8px}
+}
