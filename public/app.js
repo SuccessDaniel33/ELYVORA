@@ -391,11 +391,12 @@
         .then(()=>refreshFeed()).then(()=>openComments(postId)).catch(err=>toast(err.message,true));
     }else if(e.target.id==="post-form"){
       e.preventDefault();const fd=new FormData(e.target),text=(fd.get("text")||"").trim();if(!text)return;
-      const image=(fd.get("image")||"").trim();
+      const mediaUrl=String(fd.get("mediaUrl")||"").trim(),mediaType=fd.get("mediaType")==="video"?"video":"image";
+      if(mediaUrl){try{const parsed=new URL(mediaUrl);if(parsed.protocol!=="https:"){toast("Media links must use HTTPS.",true);return;}}catch{toast("Enter a valid media URL.",true);return;}}
       if(authUser){
-        apiRequest("/api/posts",{method:"POST",body:JSON.stringify({body:text,visibility:"public"})}).then(refreshFeed).then(()=>{closeModal();go(currentView==="profile"?"profile":"home");toast("Your post is now published on ELYVORA.");}).catch(err=>toast(err.message,true));
+        apiRequest("/api/posts",{method:"POST",body:JSON.stringify({body:text,visibility:"public",mediaUrl:mediaUrl||null,mediaType})}).then(refreshFeed).then(()=>{closeModal();go(currentView==="profile"?"profile":"home");toast("Your post is now published on ELYVORA.");}).catch(err=>toast(err.message,true));
       }else{
-        state.posts.unshift({id:"p"+Date.now(),name:state.profile.name,handle:"@"+state.profile.handle,time:"Just now",text,art:fd.get("art"),image,likes:0,comments:0,liked:false});
+        state.posts.unshift({id:"p"+Date.now(),name:state.profile.name,handle:"@"+state.profile.handle,time:"Just now",text,art:mediaUrl?"none":fd.get("art"),image:mediaUrl,mediaType:mediaUrl?mediaType:null,likes:0,comments:0,liked:false});
         save();closeModal();go(currentView==="profile"?"profile":"home");toast("Your post is saved in this device's demo feed. Sign in to publish globally.");
       }
     }else if(e.target.id==="profile-form"){
