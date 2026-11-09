@@ -345,6 +345,13 @@
   document.addEventListener("submit",e=>{
     if(e.target.id==="auth-form"){
       e.preventDefault();submitAuth(e.target);
+    }else if(e.target.id==="comment-form"){
+      e.preventDefault();
+      if(!authUser){authModal("signin");return;}
+      const form=e.target,postId=form.dataset.post,body=String(new FormData(form).get("body")||"").trim();
+      if(!body)return;
+      apiRequest("/api/posts/"+encodeURIComponent(postId)+"/comments",{method:"POST",body:JSON.stringify({body})})
+        .then(()=>refreshFeed()).then(()=>openComments(postId)).catch(err=>toast(err.message,true));
     }else if(e.target.id==="post-form"){
       e.preventDefault();const fd=new FormData(e.target),text=(fd.get("text")||"").trim();if(!text)return;
       const image=(fd.get("image")||"").trim();
