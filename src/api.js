@@ -96,8 +96,9 @@ async function bodyJson(request) {
 async function ensureSchema(db) {
   if (!schemaReady) {
     schemaReady = (async () => {
-      const row = await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").first();
-      if (!row) await db.exec(SCHEMA_SQL);
+      const migrationTable = await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'").first();
+      const applied = migrationTable ? await db.prepare("SELECT version FROM schema_migrations WHERE version=1").first() : null;
+      if (!applied) await db.exec(SCHEMA_SQL);
     })().catch(error => { schemaReady = null; throw error; });
   }
   return schemaReady;
@@ -125,7 +126,7 @@ async function createSession(db, userId, request) {
 }
 function checkSameOrigin(request) {
   const origin = request.headers.get("Origin");
-  if (!origin) return true;
+  if (!origin) return false;
   try { return new URL(origin).origin === new URL(request.url).origin; } catch { return false; }
 }
 function requireUser(user) { return user ? null : fail("Sign in to continue.", 401, "authentication_required"); }
