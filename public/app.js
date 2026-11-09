@@ -418,7 +418,7 @@
   }
   async function logout(){
     try{await apiRequest("/api/auth/logout",{method:"POST",body:"{}"});}catch{}
-    disconnectChatSocket();authUser=null;remoteEconomy=null;remoteJobs=null;remoteConversations=null;remoteMessages=[];activeConversationId=null;remoteFeedLoaded=false;state.posts=structuredClone(starter.posts);state.profile=structuredClone(starter.profile);state.balance=starter.balance;save();closeModal();render();toast("You have signed out.");
+    closeCall(false);incomingCall=null;disconnectChatSocket();authUser=null;remoteEconomy=null;remoteJobs=null;remoteConversations=null;remoteMessages=[];activeConversationId=null;remoteFeedLoaded=false;state.posts=structuredClone(starter.posts);state.profile=structuredClone(starter.profile);state.balance=starter.balance;save();closeModal();render();toast("You have signed out.");
   }
   function money(n){return new Intl.NumberFormat("en-US").format(n);}
   function avatar(letter, extra=""){return '<span class="avatar '+extra+'">'+safe(letter||"E")+"</span>";}
@@ -564,7 +564,7 @@
     if(!["home","discover","world","life","messages","careers","economy","profile"].includes(view))return;
     currentView=view;document.querySelector("#sidebar").classList.remove("open");render();window.scrollTo({top:0,behavior:"smooth"});
     if(view==="messages"&&authUser){refreshConversations().then(()=>{connectChatSocket(activeConversationId);render();}).catch(err=>toast(err.message,true));}
-    else if(view!=="messages")disconnectChatSocket();
+    else if(view!=="messages"&&!callState)disconnectChatSocket();
   }
   function toast(text,warn=false){
     const region=document.querySelector("#toast-region"),el=document.createElement("div");
@@ -624,7 +624,7 @@
     else if(a==="logout")logout();
     else if(a==="auth-switch")authModal(b.dataset.mode);
     else if(a==="edit-profile")editProfile();
-    else if(a==="close-modal")closeModal();
+    else if(a==="close-modal"){if(callState)closeCall(true);else if(incomingCall)rejectCall();else closeModal();}
     else if(a==="dismiss-banner"){state.banner=false;save();setHeader();}
     else if(a==="like"){const p=state.posts.find(x=>x.id===id);if(p){if(p.remote&&authUser){apiRequest("/api/posts/"+encodeURIComponent(id)+"/like",{method:"POST",body:"{}"}).then(refreshFeed).then(render).catch(err=>toast(err.message,true));}else{p.liked=!p.liked;p.likes+=p.liked?1:-1;save();render();}}}
     else if(a==="comment")openComments(id);
@@ -747,9 +747,9 @@
   document.querySelector("#mobile-menu").addEventListener("click",()=>document.querySelector("#sidebar").classList.toggle("open"));
   document.addEventListener("keydown",e=>{
     if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();document.querySelector("#global-search").focus();}
-    if(e.key==="Escape"&&!modal.hidden)closeModal();
+    if(e.key==="Escape"&&!modal.hidden){if(callState)closeCall(true);else if(incomingCall)rejectCall();else closeModal();}
   });
-  modal.addEventListener("click",e=>{if(e.target===modal)closeModal();});
+  modal.addEventListener("click",e=>{if(e.target===modal){if(callState)closeCall(true);else if(incomingCall)rejectCall();else closeModal();}});
   render();
   initRemote();
 })();
