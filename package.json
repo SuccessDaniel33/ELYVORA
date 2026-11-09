@@ -1,0 +1,17 @@
+{
+  "name": "elyvora",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ELYVORA website running on Cloudflare Workers",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.158.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
