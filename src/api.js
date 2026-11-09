@@ -177,7 +177,7 @@ export async function handleApi(request, env) {
       const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
       let form;try{form=await request.formData();}catch{return fail("Upload must use multipart form data.");}
       const file=form.get("file");
-      if(!(file instanceof File))return fail("Choose an image, video or audio file.");
+      if(!file||typeof file.arrayBuffer!=="function"||typeof file.size!=="number")return fail("Choose an image, video or audio file.");
       const mimeType=String(file.type||"").split(";")[0].toLowerCase();
       const allowed=new Set(["image/jpeg","image/png","image/webp","image/gif","image/avif","video/mp4","video/webm","video/quicktime","audio/webm","audio/ogg","audio/mp4","audio/mpeg"]);
       if(!allowed.has(mimeType))return fail("This file type is not supported.");
