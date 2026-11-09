@@ -613,7 +613,9 @@
     else if(a==="post-options")toast("Post controls will expand with full member accounts.");
     else if(a==="story")toast("Opening "+b.dataset.name+"'s story — story playback is coming soon.");
     else if(a==="video-post"){createPost();const mediaType=modalContent.querySelector('select[name="mediaType"]');if(mediaType)mediaType.value="video";}
-    else if(a==="voice-note")toast("Voice notes need microphone capture and secure media storage. They are on the communication roadmap.");
+    else if(a==="voice-note")toggleVoiceRecording();
+    else if(a==="toggle-recording")toggleVoiceRecording();
+    else if(a==="attach-file")document.querySelector("#chat-file")?.click();
     else if(a==="voice-call")startCall("audio");
     else if(a==="video-call")startCall("video");
     else if(a==="accept-call")acceptCall();
