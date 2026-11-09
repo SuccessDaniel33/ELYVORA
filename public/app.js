@@ -352,8 +352,13 @@
       }
     }else if(e.target.id==="chat-form"){
       e.preventDefault();const input=document.querySelector("#chat-input"),text=input.value.trim();if(!text)return;
-      const id=state.activeChat||"tobi",now=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-      state.messages[id]=state.messages[id]||[];state.messages[id].push({mine:true,text,time:now});save();render();
+      if(authUser&&activeConversationId){
+        apiRequest("/api/conversations/"+encodeURIComponent(activeConversationId)+"/messages",{method:"POST",body:JSON.stringify({body:text})})
+          .then(()=>refreshMessages(activeConversationId)).then(render).catch(err=>toast(err.message,true));
+      }else{
+        const id=state.activeChat||"tobi",now=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+        state.messages[id]=state.messages[id]||[];state.messages[id].push({mine:true,text,time:now});save();render();
+      }
     }
   });
   document.addEventListener("input",e=>{
