@@ -1,8 +1,8 @@
 /**
  * ELYVORA Cloudflare Worker
  *
- * Serves the static site through Workers Static Assets and applies
- * a small set of baseline browser security headers.
+ * Serves the application through Workers Static Assets and applies
+ * baseline browser security and feature-permission headers.
  */
 export default {
   async fetch(request, env) {
@@ -19,7 +19,9 @@ export default {
     headers.set("X-Content-Type-Options", "nosniff");
     headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
     headers.set("X-Frame-Options", "DENY");
-    headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    // These capabilities are available to this origin only and still
+    // require explicit browser/user permission before use.
+    headers.set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(self)");
 
     return new Response(response.body, {
       status: response.status,
