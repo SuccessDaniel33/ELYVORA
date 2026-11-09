@@ -255,7 +255,9 @@
     else if(a==="explore-item")toast("Opening "+b.dataset.name+" — discovery details are being built.");
     else if(a==="visit-place")toast("Welcome to the "+b.dataset.name+" destination preview.");
     else if(a==="career"){
-      const j=jobs.find(x=>x.id===id);if(j&&!state.jobsDone.includes(id)){state.jobsDone.push(id);state.balance+=j.pay;addTransaction(j.title,j.pay,"in","Career activity reward");save();render();toast("Activity completed! "+j.pay+" demo credits added.");}
+      const remoteJob=(remoteJobs||[]).find(x=>x.id===id);
+      if(remoteJob){if(!authUser){authModal("signin");toast("Sign in to apply for opportunities.");return;}apiRequest("/api/careers/"+encodeURIComponent(id)+"/apply",{method:"POST",body:JSON.stringify({message:"I would like to be considered for this opportunity."})}).then(refreshJobs).then(()=>{render();toast("Your application has been submitted.");}).catch(err=>toast(err.message,true));}
+      else{const j=jobs.find(x=>x.id===id);if(j&&!state.jobsDone.includes(id)){state.jobsDone.push(id);state.balance+=j.pay;addTransaction(j.title,j.pay,"in","Career activity reward");save();render();toast("Activity completed! "+j.pay+" demo credits added.");}}
     }
     else if(a==="buy-property"){
       if(remoteEconomy&&authUser){apiRequest("/api/economy/properties/"+encodeURIComponent(id)+"/purchase",{method:"POST",body:"{}"}).then(refreshEconomy).then(()=>{render();toast("Virtual property added to your portfolio.");}).catch(err=>toast(err.message,true));return;}
