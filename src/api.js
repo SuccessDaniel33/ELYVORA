@@ -351,6 +351,19 @@ export async function handleApi(request, env) {
       return json({conversationId:id},201);
     }
 
+    const liveChatMatch=path.match(/^\/api\/conversations\/([a-f0-9-]+)\/live$/);
+    if(method==="GET"&&liveChatMatch){
+      const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
+      const member=await env.DB.prepare("SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?").bind(liveChatMatch[1],user.id).first();
+      if(!member)return fail("Conversation not found.",404,"not_found");
+      if(request.headers.get("Upgrade")?.toLowerCase()!=="websocket")return fail("A WebSocket connection is required.",426,"upgrade_required");
+      if(!env.CHAT_ROOMS)return fail("Real-time messaging is not configured.",503,"realtime_unavailable");
+      const room=env.CHAT_ROOMS.get(env.CHAT_ROOMS.idFromName(liveChatMatch[1]));
+      const headers=new Headers(request.headers);
+      headers.set("X-Elyvora-User-Id",user.id);
+      return room.fetch(new Request("https://chat-room.internal/connect",{method:"GET",headers}));
+    }
+
     const messagesMatch=path.match(/^\/api\/conversations\/([a-f0-9-]+)\/messages$/);
     if(messagesMatch&&method==="GET"){
       const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
@@ -368,7 +381,14 @@ export async function handleApi(request, env) {
         env.DB.prepare("INSERT INTO messages(id,conversation_id,sender_id,body,created_at) VALUES (?,?,?,?,?)").bind(id,messagesMatch[1],user.id,body,now),
         env.DB.prepare("UPDATE conversations SET updated_at=? WHERE id=?").bind(now,messagesMatch[1])
       ]);
-      return json({message:{id,body,sender_id:user.id,created_at:now}},201);
+      const savedMessage={id,body,sender_id:user.id,created_at:now};
+      if(env.CHAT_ROOMS){
+        try{
+          const room=env.CHAT_ROOMS.get(env.CHAT_ROOMS.idFromName(messagesMatch[1]));
+          await room.fetch("https://chat-room.internal/broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"message",message:savedMessage})});
+        }catch(error){console.warn("ELYVORA real-time broadcast failed:",error);}
+      }
+      return json({message:savedMessage},201);
     }
 
     if(method==="GET"&&path==="/api/notifications"){
