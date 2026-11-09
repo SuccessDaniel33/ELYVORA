@@ -123,6 +123,169 @@
       if(chatSocket===socket)console.warn("ELYVORA live chat connection interrupted.");
     });
   }
+  function activeChatPartner(){
+    return (remoteConversations||[]).find(c=>c.id===activeConversationId)||null;
+  }
+  function waitForChatSocket(){
+    if(chatSocket?.readyState===WebSocket.OPEN)return Promise.resolve(chatSocket);
+    if(!chatSocket&&activeConversationId)connectChatSocket(activeConversationId);
+    const socket=chatSocket;
+    if(!socket)return Promise.reject(new Error("Open a conversation before starting a call."));
+    return new Promise((resolve,reject)=>{
+      const timer=setTimeout(()=>reject(new Error("The chat connection is taking too long. Try again.")),8000);
+      socket.addEventListener("open",()=>{clearTimeout(timer);resolve(socket);},{once:true});
+      socket.addEventListener("error",()=>{clearTimeout(timer);reject(new Error("Could not connect to the conversation."));},{once:true});
+      socket.addEventListener("close",()=>{clearTimeout(timer);reject(new Error("The conversation connection closed."));},{once:true});
+    });
+  }
+  function sendCallSignal(payload){
+    if(!chatSocket||chatSocket.readyState!==WebSocket.OPEN)throw new Error("The live conversation connection is not ready.");
+    const target=payload.targetUserId||callState?.targetUserId||incomingCall?.fromUserId;
+    chatSocket.send(JSON.stringify({...payload,targetUserId:target}));
+  }
+  function openCallModal(statusText){
+    if(!callState)return;
+    const isVideo=callState.kind==="video";
+    const title=isVideo?"ELYVORA video call":"ELYVORA voice call";
+    openModal(title,'<div class="call-modal"><div class="call-stage '+(isVideo?"video":"voice")+'"><video id="remote-video" autoplay playsinline '+(isVideo?"":"hidden")+'></video><div class="voice-call-avatar" id="voice-call-avatar">'+safe(initials(callState.remoteName||"Member"))+'</div><video id="local-video" autoplay muted playsinline '+(isVideo?"":"hidden")+'></video><audio id="remote-audio" autoplay></audio><div class="call-stage-label"><b>'+safe(callState.remoteName||"ELYVORA member")+'</b><small id="call-status">'+safe(statusText)+'</small></div></div><div class="call-controls"><button class="call-control" data-action="toggle-mic">◖<small>Mute</small></button>'+(isVideo?'<button class="call-control" data-action="toggle-camera">▣<small>Camera</small></button>':'')+'<button class="call-control end" data-action="end-call">×<small>End call</small></button></div><p class="call-disclaimer">Private 1-to-1 peer connection · Use a stable internet connection</p></div>',"ELYVORA CONNECT");
+    attachCallMedia();
+  }
+  function attachCallMedia(){
+    if(!callState)return;
+    const remoteVideo=document.querySelector("#remote-video");
+    const remoteAudio=document.querySelector("#remote-audio");
+    const localVideo=document.querySelector("#local-video");
+    if(remoteVideo&&callState.remoteStream){remoteVideo.srcObject=callState.remoteStream;remoteVideo.play().catch(()=>{});}
+    if(remoteAudio&&callState.remoteStream){remoteAudio.srcObject=callState.remoteStream;remoteAudio.play().catch(()=>{});}
+    if(localVideo&&callState.localStream){localVideo.srcObject=callState.localStream;localVideo.play().catch(()=>{});}
+  }
+  function updateCallStatus(text){
+    const el=document.querySelector("#call-status");if(el)el.textContent=text;
+  }
+  function createCallPeer(){
+    const peer=new RTCPeerConnection({iceServers:[
+      {urls:"stun:stun.l.google.com:19302"},
+      {urls:"stun:stun1.l.google.com:19302"}
+    ]});
+    callState.peer=peer;
+    callState.remoteStream=new MediaStream();
+    peer.ontrack=event=>{
+      const streams=event.streams||[];
+      if(streams[0])for(const track of streams[0].getTracks())if(!callState.remoteStream.getTracks().some(t=>t.id===track.id))callState.remoteStream.addTrack(track);
+      else if(event.track)callState.remoteStream.addTrack(event.track);
+      attachCallMedia();
+      updateCallStatus("Connected");
+    };
+    peer.onicecandidate=event=>{
+      if(event.candidate&&callState){try{sendCallSignal({type:"call-ice",callId:callState.callId,candidate:event.candidate.toJSON()});}catch(error){console.warn(error);}}
+    };
+    peer.onconnectionstatechange=()=>{
+      if(!callState||callState.peer!==peer)return;
+      if(peer.connectionState==="connected")updateCallStatus("Connected");
+      if(peer.connectionState==="failed")updateCallStatus("Connection failed · try again");
+      if(peer.connectionState==="disconnected")updateCallStatus("Connection interrupted…");
+    };
+    return peer;
+  }
+  async function startCall(kind){
+    if(!authUser){authModal("signin");toast("Sign in to make calls.");return;}
+    if(!activeConversationId){toast("Open a private conversation before calling.",true);return;}
+    if(callState||incomingCall){toast("Finish the current call first.",true);return;}
+    if(!navigator.mediaDevices?.getUserMedia){toast("This browser does not support microphone or camera access.",true);return;}
+    const partner=activeChatPartner();
+    if(!partner?.other_user_id){toast("This conversation does not have another member yet.",true);return;}
+    try{
+      await waitForChatSocket();
+      const localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:kind==="video"});
+      callState={callId:crypto.randomUUID(),kind,role:"caller",targetUserId:partner.other_user_id,remoteName:partner.other_user_name||"ELYVORA member",localStream,remoteStream:new MediaStream(),pendingCandidates:[],peer:null};
+      const peer=createCallPeer();
+      for(const track of localStream.getTracks())peer.addTrack(track,localStream);
+      openCallModal("Calling… waiting for the other member");
+      const offer=await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      sendCallSignal({type:"call-offer",callId:callState.callId,kind,description:peer.localDescription,targetUserId:partner.other_user_id});
+    }catch(error){
+      closeCall(false);
+      toast(error.message||"Could not start the call. Check microphone and camera permissions.",true);
+    }
+  }
+  function showIncomingCall(data){
+    if(!authUser||currentView!=="messages"||data.fromUserId===authUser.id)return;
+    if(callState||incomingCall){
+      try{sendCallSignal({type:"call-busy",callId:data.callId,targetUserId:data.fromUserId});}catch{}
+      return;
+    }
+    incomingCall=data;
+    const name=activeChatPartner()?.other_user_name||"ELYVORA member";
+    openModal(data.kind==="video"?"Incoming video call":"Incoming voice call",'<div class="incoming-call"><div class="incoming-call-avatar">'+safe(initials(name))+'</div><h3>'+safe(name)+'</h3><p>is calling you on ELYVORA</p><div class="call-controls"><button class="call-control accept" data-action="accept-call">✓<small>Accept</small></button><button class="call-control end" data-action="reject-call">×<small>Decline</small></button></div></div>',"INCOMING CALL");
+  }
+  async function acceptCall(){
+    if(!incomingCall)return;
+    const data=incomingCall;
+    try{
+      await waitForChatSocket();
+      const localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:data.kind==="video"});
+      callState={callId:data.callId,kind:data.kind,role:"receiver",targetUserId:data.fromUserId,remoteName:activeChatPartner()?.other_user_name||"ELYVORA member",localStream,remoteStream:new MediaStream(),pendingCandidates:[],peer:null};
+      const peer=createCallPeer();
+      for(const track of localStream.getTracks())peer.addTrack(track,localStream);
+      await peer.setRemoteDescription(new RTCSessionDescription(data.description));
+      for(const candidate of callState.pendingCandidates.splice(0)){try{await peer.addIceCandidate(new RTCIceCandidate(candidate));}catch{}}
+      incomingCall=null;
+      const answer=await peer.createAnswer();
+      await peer.setLocalDescription(answer);
+      openCallModal("Connecting…");
+      sendCallSignal({type:"call-answer",callId:callState.callId,description:peer.localDescription,targetUserId:callState.targetUserId});
+    }catch(error){
+      incomingCall=null;
+      closeCall(false);
+      toast(error.message||"Could not accept the call. Check microphone and camera permissions.",true);
+    }
+  }
+  async function handleCallSignal(data){
+    if(data.type==="call-offer"){showIncomingCall(data);return;}
+    if(!callState||data.callId!==callState.callId)return;
+    if(data.type==="call-answer"&&callState.role==="caller"){
+      try{
+        await callState.peer.setRemoteDescription(new RTCSessionDescription(data.description));
+        for(const candidate of callState.pendingCandidates.splice(0)){try{await callState.peer.addIceCandidate(new RTCIceCandidate(candidate));}catch{}}
+        updateCallStatus("Connecting…");
+      }catch(error){toast("The call could not connect.",true);closeCall(false);}
+    }else if(data.type==="call-ice"&&data.candidate){
+      if(callState.peer?.remoteDescription){try{await callState.peer.addIceCandidate(new RTCIceCandidate(data.candidate));}catch(error){console.warn("Could not add call network candidate:",error);}}
+      else callState.pendingCandidates.push(data.candidate);
+    }else if(["call-reject","call-hangup","call-busy"].includes(data.type)){
+      const message=data.type==="call-busy"?"The other member is busy.":data.type==="call-reject"?"The call was declined.":"The other member ended the call.";
+      closeCall(false);toast(message);
+    }
+  }
+  function closeCall(notify=true){
+    const stateToClose=callState;
+    if(notify&&stateToClose&&chatSocket?.readyState===WebSocket.OPEN){try{sendCallSignal({type:"call-hangup",callId:stateToClose.callId,targetUserId:stateToClose.targetUserId});}catch{}}
+    callState=null;incomingCall=null;
+    if(stateToClose){
+      for(const track of stateToClose.localStream?.getTracks()||[])track.stop();
+      try{stateToClose.peer?.close();}catch{}
+    }
+    if(!modal.hidden)closeModal();
+  }
+  async function rejectCall(){
+    if(incomingCall&&chatSocket?.readyState===WebSocket.OPEN){try{sendCallSignal({type:"call-reject",callId:incomingCall.callId,targetUserId:incomingCall.fromUserId});}catch{}}
+    incomingCall=null;closeModal();
+  }
+  function toggleCallMic(){
+    if(!callState)return;
+    const tracks=callState.localStream?.getAudioTracks()||[];
+    if(!tracks.length)return;
+    const enabled=!tracks[0].enabled;tracks.forEach(t=>t.enabled=enabled);
+    const button=modalContent.querySelector('[data-action="toggle-mic"] small');if(button)button.textContent=enabled?"Mute":"Unmute";
+  }
+  function toggleCallCamera(){
+    if(!callState)return;
+    const tracks=callState.localStream?.getVideoTracks()||[];
+    if(!tracks.length)return;
+    const enabled=!tracks[0].enabled;tracks.forEach(t=>t.enabled=enabled);
+    const button=modalContent.querySelector('[data-action="toggle-camera"] small');if(button)button.textContent=enabled?"Camera off":"Camera on";
+  }
   async function openConversation(conversationId){
     activeConversationId=conversationId;
     await refreshMessages(conversationId);
