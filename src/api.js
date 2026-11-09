@@ -50,6 +50,50 @@ INSERT OR IGNORE INTO properties (id,name,city,country,description,price,status)
 INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES (1,unixepoch()),(2,unixepoch());
 `;
 
+const ACCOUNT_SCHEMA_SQL = `-- ELYVORA account identity and privacy v3
+CREATE TABLE IF NOT EXISTS account_profiles (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  country TEXT NOT NULL DEFAULT '',
+  city TEXT NOT NULL DEFAULT '',
+  cover_image_url TEXT,
+  interests_json TEXT NOT NULL DEFAULT '[]',
+  email_verified_at INTEGER,
+  updated_at INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS user_privacy (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  profile_visibility TEXT NOT NULL DEFAULT 'public' CHECK (profile_visibility IN ('public','followers','private')),
+  content_visibility TEXT NOT NULL DEFAULT 'public' CHECK (content_visibility IN ('public','followers','private')),
+  message_privacy TEXT NOT NULL DEFAULT 'everyone' CHECK (message_privacy IN ('everyone','followers','none')),
+  comment_privacy TEXT NOT NULL DEFAULT 'everyone' CHECK (comment_privacy IN ('everyone','followers','none')),
+  show_online INTEGER NOT NULL DEFAULT 1 CHECK (show_online IN (0,1)),
+  read_receipts INTEGER NOT NULL DEFAULT 1 CHECK (read_receipts IN (0,1)),
+  updated_at INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS user_blocks (
+  blocker_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  blocked_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (blocker_id,blocked_id),
+  CHECK (blocker_id <> blocked_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON user_blocks(blocked_id);
+CREATE TABLE IF NOT EXISTS email_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  purpose TEXT NOT NULL CHECK (purpose IN ('verify_email','reset_password')),
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at INTEGER NOT NULL,
+  used_at INTEGER,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_email_tokens_user ON email_tokens(user_id,purpose,created_at DESC);
+INSERT OR IGNORE INTO account_profiles(user_id,country,city,interests_json,updated_at)
+  SELECT id,'','', '[]', updated_at FROM users;
+INSERT OR IGNORE INTO user_privacy(user_id,updated_at)
+  SELECT id,updated_at FROM users;
+INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES (3,unixepoch());
+`;
 let schemaReady;
 const encoder = new TextEncoder();
 const SESSION_SECONDS = 60 * 60 * 24 * 30;
@@ -107,12 +151,59 @@ async function ensureSchema(db) {
       const migrationTable = await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'").first();
       const applied = migrationTable ? await db.prepare("SELECT version FROM schema_migrations WHERE version=2").first() : null;
       if (!applied) await db.exec(SCHEMA_SQL);
+      const accountMigration = await db.prepare("SELECT version FROM schema_migrations WHERE version=3").first();
+      if (!accountMigration) await db.exec(ACCOUNT_SCHEMA_SQL);
     })().catch(error => { schemaReady = null; throw error; });
   }
   return schemaReady;
 }
+
+async function userRecord(db, userId) {
+  return db.prepare(`SELECT u.*,ap.country,ap.city,ap.cover_image_url,ap.interests_json,ap.email_verified_at,
+    COALESCE(up.profile_visibility,'public') AS profile_visibility,
+    COALESCE(up.content_visibility,'public') AS content_visibility,
+    COALESCE(up.message_privacy,'everyone') AS message_privacy,
+    COALESCE(up.comment_privacy,'everyone') AS comment_privacy,
+    COALESCE(up.show_online,1) AS show_online,COALESCE(up.read_receipts,1) AS read_receipts
+    FROM users u LEFT JOIN account_profiles ap ON ap.user_id=u.id
+    LEFT JOIN user_privacy up ON up.user_id=u.id WHERE u.id=?`).bind(userId).first();
+}
+function parseInterests(value) {
+  try { const parsed=JSON.parse(value||"[]"); return Array.isArray(parsed)?parsed.filter(x=>typeof x==="string").slice(0,20):[]; }
+  catch { return []; }
+}
+function publicPrivacy(row) {
+  return {profileVisibility:row?.profile_visibility||"public",contentVisibility:row?.content_visibility||"public",
+    messagePrivacy:row?.message_privacy||"everyone",commentPrivacy:row?.comment_privacy||"everyone",
+    showOnline:Boolean(row?.show_online??1),readReceipts:Boolean(row?.read_receipts??1)};
+}
+function escapeHtml(value) {
+  return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+async function emailToken(db,userId,purpose,ttlSeconds) {
+  const token=base64url(crypto.getRandomValues(new Uint8Array(32))),now=Math.floor(Date.now()/1000);
+  await db.prepare("DELETE FROM email_tokens WHERE user_id=? AND purpose=? AND (used_at IS NOT NULL OR expires_at<?)").bind(userId,purpose,now).run();
+  await db.prepare("INSERT INTO email_tokens(id,user_id,purpose,token_hash,expires_at,created_at) VALUES (?,?,?,?,?,?)")
+    .bind(randomId(),userId,purpose,await digest(token),now+ttlSeconds,now).run();
+  return token;
+}
+async function sendAccountEmail(env,to,subject,html) {
+  if(!env.RESEND_API_KEY||!env.EMAIL_FROM)return false;
+  try {
+    const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({from:env.EMAIL_FROM,to:[to],subject,html})});
+    if(!response.ok){console.error("ELYVORA email delivery failed:",response.status,await response.text());return false;}
+    return true;
+  } catch(error) { console.error("ELYVORA email delivery error:",error); return false; }
+}
+async function isBlocked(db,firstId,secondId) {
+  return Boolean(await db.prepare("SELECT 1 FROM user_blocks WHERE (blocker_id=? AND blocked_id=?) OR (blocker_id=? AND blocked_id=?) LIMIT 1")
+    .bind(firstId,secondId,secondId,firstId).first());
+}
 function publicUser(row) {
-  return row ? { id: row.id, email: row.email, username: row.username, displayName: row.display_name, bio: row.bio, location: row.location, role: row.role, avatarUrl: row.avatar_url, createdAt: row.created_at } : null;
+  return row ? { id: row.id, email: row.email, username: row.username, displayName: row.display_name, bio: row.bio,
+    location: row.location, city: row.city||"", country: row.country||"", role: row.role, avatarUrl: row.avatar_url,
+    coverImageUrl: row.cover_image_url||null, interests:parseInterests(row.interests_json), emailVerified:Boolean(row.email_verified_at),
+    createdAt: row.created_at } : null;
 }
 async function currentUser(request, db) {
   const token = cookieValue(request, "elyvora_session");
