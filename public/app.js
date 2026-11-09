@@ -261,7 +261,9 @@
     }
   });
   document.addEventListener("submit",e=>{
-    if(e.target.id==="post-form"){
+    if(e.target.id==="auth-form"){
+      e.preventDefault();submitAuth(e.target);
+    }else if(e.target.id==="post-form"){
       e.preventDefault();const fd=new FormData(e.target),text=(fd.get("text")||"").trim();if(!text)return;
       state.posts.unshift({id:"p"+Date.now(),name:state.profile.name,handle:"@"+state.profile.handle,time:"Just now",text,art:fd.get("art"),image:(fd.get("image")||"").trim(),likes:0,comments:0,liked:false});
       save();closeModal();go(currentView==="profile"?"profile":"home");toast("Your post is now in your local demo feed.");
