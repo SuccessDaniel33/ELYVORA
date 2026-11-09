@@ -424,7 +424,7 @@
   function avatar(letter, extra=""){return '<span class="avatar '+extra+'">'+safe(letter||"E")+"</span>";}
   function initials(name){return (name||"E").trim().split(/\s+/).slice(0,2).map(x=>x[0]).join("").toUpperCase();}
   function setHeader(){
-    const names={home:"Home",discover:"Discover",world:"World",messages:"Messages",careers:"Careers",economy:"Economy",profile:"My profile"};
+    const names={home:"Home",discover:"Discover",world:"City",life:"My life",messages:"Messages",careers:"Careers",economy:"Economy",profile:"My profile"};
     document.querySelector("#page-title").textContent=names[currentView]||"Home";
     document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===currentView));
     document.querySelector("#side-name").textContent=state.profile.name;
@@ -556,12 +556,12 @@
   }
   function render(){
     setHeader();
-    const views={home:homeView,discover:discoverView,world:worldView,messages:messagesView,careers:careersView,economy:economyView,profile:profileView};
+    const views={home:homeView,discover:discoverView,world:worldView,life:lifeView,messages:messagesView,careers:careersView,economy:economyView,profile:profileView};
     root.innerHTML=(views[currentView]||homeView)();
     if(currentView==="messages")requestAnimationFrame(()=>{const el=document.querySelector("#chat-messages");if(el)el.scrollTop=el.scrollHeight;});
   }
   function go(view){
-    if(!["home","discover","world","messages","careers","economy","profile"].includes(view))return;
+    if(!["home","discover","world","life","messages","careers","economy","profile"].includes(view))return;
     currentView=view;document.querySelector("#sidebar").classList.remove("open");render();window.scrollTo({top:0,behavior:"smooth"});
     if(view==="messages"&&authUser){refreshConversations().then(()=>{connectChatSocket(activeConversationId);render();}).catch(err=>toast(err.message,true));}
     else if(view!=="messages")disconnectChatSocket();
