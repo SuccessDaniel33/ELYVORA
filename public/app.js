@@ -88,9 +88,40 @@
     }
     await refreshMessages(activeConversationId);
   }
+  function disconnectChatSocket(){
+    const socket=chatSocket;
+    chatSocket=null;
+    chatSocketConversationId=null;
+    if(socket&&socket.readyState<2){try{socket.close(1000,"Conversation changed");}catch{}}
+  }
+  function connectChatSocket(conversationId){
+    if(!authUser||!conversationId){disconnectChatSocket();return;}
+    if(chatSocket&&chatSocketConversationId===conversationId&&chatSocket.readyState<2)return;
+    disconnectChatSocket();
+    const protocol=location.protocol==="https:"?"wss:":"ws:";
+    const socket=new WebSocket(protocol+"//"+location.host+"/api/conversations/"+encodeURIComponent(conversationId)+"/live");
+    chatSocket=socket;
+    chatSocketConversationId=conversationId;
+    socket.addEventListener("message",event=>{
+      if(chatSocket!==socket||chatSocketConversationId!==conversationId)return;
+      try{
+        const data=JSON.parse(event.data);
+        if(data.type==="message"&&activeConversationId===conversationId){
+          refreshMessages(conversationId).then(()=>{if(currentView==="messages")render();}).catch(error=>console.warn("Could not refresh live chat:",error));
+        }
+      }catch{}
+    });
+    socket.addEventListener("close",()=>{
+      if(chatSocket===socket){chatSocket=null;chatSocketConversationId=null;}
+    });
+    socket.addEventListener("error",()=>{
+      if(chatSocket===socket)console.warn("ELYVORA live chat connection interrupted.");
+    });
+  }
   async function openConversation(conversationId){
     activeConversationId=conversationId;
     await refreshMessages(conversationId);
+    connectChatSocket(conversationId);
     render();
   }
   async function beginConversation(recipientId){
