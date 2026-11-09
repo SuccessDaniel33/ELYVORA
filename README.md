@@ -1,35 +1,58 @@
 # ELYVORA
 
-ELYVORA is an original social-world product concept: a global place to connect, share, discover places, develop careers and participate in a simulated digital economy.
+ELYVORA is an original social-world platform: a global place to connect, share, discover places, develop careers and participate in a simulated digital economy.
 
-This repository currently contains the first interactive web prototype. It is designed as a mobile-friendly application experience rather than a marketing-only landing page.
+This repository contains the first account-backed web application release. It is designed as a mobile-friendly app experience rather than a marketing-only landing page.
 
-## Current prototype
+## Implemented in this release
 
 - Responsive application shell with desktop sidebar and mobile navigation
-- Home feed with demo stories, post publishing, reactions and profile editing
-- Discover view for communities, places and career categories
-- Visual world exploration concept with Lagos, London and Tokyo destinations
-- Local demo conversations and message composer
-- Career activity simulations and virtual-credit rewards
-- Virtual wallet, activity ledger and property-acquisition simulation
-- Browser-local persistence using localStorage
+- Account registration and sign-in using password hashing and server-side sessions
+- D1-backed member profiles and profile editing
+- Persistent public social feed, post publishing and post appreciations
+- Career listings and authenticated applications
+- Persistent virtual wallet, transaction ledger and virtual property acquisitions
+- Database schema for follows, comments, conversations, messages, notifications and user reports
+- Local demo feed and conversations for visitors who have not signed in
+- Cloudflare Workers Builds connected to GitHub for deployments from `main`
 
-## Important prototype boundaries
+## Important current limitations
 
-The current prototype is client-side and uses sample identities and sample content. Activity is stored in the visitor's browser only. It does **not** yet provide production user registration, cross-user real-time messaging, media upload storage, voice notes, audio/video calling, live geolocation, real job listings, payment processing, cash-out, cryptocurrency, or legally recognized property ownership.
+This is an early product release, not a finished A-to-Z global platform.
 
-Those features require production services and careful security, privacy, moderation, identity, payment, and legal design. Demo credits are not money and cannot be redeemed.
+- Email verification, password reset and social sign-in are not yet implemented.
+- The messaging API is present, but the chat interface is still using local demonstration conversations. Real cross-user message screens and delivery need to be completed.
+- Voice notes, audio calling and video calling are not live.
+- Image/video file uploads are not live. The Cloudflare account's R2 service still needs to be enabled and configured.
+- The World map is a visual concept; live map tiles, geocoding, routes, geolocation and 3D city environments are not connected.
+- Career opportunities are starter listings. Employer onboarding, verification, contracts, payroll and real payment processing are not implemented.
+- ELYVORA credits and property are a simulated in-app economy only. They are not money, cryptocurrency, investments or legally recognized property ownership, and cannot be redeemed.
+- Moderation and reporting tables/API groundwork exist, but a full moderation console, abuse prevention workflow and human review process are still needed.
+
+## Security and privacy foundation
+
+- Passwords are stored as PBKDF2-derived hashes with per-account random salts.
+- Sessions are opaque random tokens stored as SHA-256 hashes in D1 and delivered in HttpOnly, SameSite cookies.
+- Mutating API calls validate the Origin header when supplied.
+- API responses are not cached.
+- Basic security headers and a restrictive Content Security Policy are applied.
+- Authentication attempts are rate limited per hashed client address.
+
+Before public launch, complete email verification and recovery, bot protection, stronger rate limiting, data deletion/export, moderation operations, privacy/legal documents, independent security testing and a production incident plan.
 
 ## Project structure
 
 - `public/index.html` — application entry point
 - `public/app.css` — responsive interface and design system
-- `public/app.js` — prototype interactions and local demo state
+- `public/app.js` — client interactions and API integration
 - `public/favicon.svg` — ELYVORA app icon
 - `src/index.js` — Cloudflare Worker entry point and response headers
-- `wrangler.jsonc` — Cloudflare Workers configuration
-- `package.json` — local development and deployment scripts
+- `src/api.js` — account, social, messaging, career and economy API
+- `migrations/0001_core.sql` — initial D1 database schema
+- `wrangler.jsonc` — Cloudflare Workers and D1 configuration
+- `package.json` — development, syntax checks and deployment scripts
+
+The Worker ensures the versioned core schema exists on the first API request using its D1 binding. The SQL migration is also included for managed migration workflows.
 
 ## Run locally
 
@@ -38,6 +61,12 @@ Requirements: Node.js 20+ and npm.
 ```bash
 npm install
 npm run dev
+```
+
+Run syntax validation:
+
+```bash
+npm run check
 ```
 
 ## Deploy
@@ -52,21 +81,9 @@ Cloudflare Workers Builds is connected to `SuccessDaniel33/ELYVORA`:
 
 - Production branch: `main`
 - Root directory: `/`
-- Build command: none (the static assets are deployed directly)
+- Build command: `npm run check`
 - Deploy command: `npx wrangler deploy`
 
-Every push to `main` triggers a Cloudflare production build and deployment.
+Every push to `main` runs the JavaScript syntax checks and deploys the Worker.
 
-## Roadmap
-
-1. Production authentication, account recovery and secure profiles
-2. Backend database, file storage and moderation/reporting tools
-3. Shared social feed, follows, comments and notifications
-4. Real-time messaging, media sharing and voice notes
-5. Audio/video calling and presence
-6. Interactive maps, location discovery and world experiences
-7. Career profiles, verified opportunities and business tools
-8. Auditable virtual economy and property simulation
-9. Production testing, accessibility, security review and mobile apps
-
-ELYVORA is an original product. Its implementation, interface and brand assets are developed independently.
+ELYVORA's implementation, interface and brand assets are developed independently.
