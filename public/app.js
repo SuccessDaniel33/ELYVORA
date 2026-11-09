@@ -650,6 +650,13 @@
     else if(a==="new-chat")newChatModal();
     else if(a==="start-chat")beginConversation(id);
     else if(a==="explore-item")toast("Opening "+b.dataset.name+" — discovery details are being built.");
+    else if(a==="life-action"){
+      const metric=b.dataset.need,updates={hunger:24,energy:28,social:22};
+      if(!Object.hasOwn(updates,metric)||!state.needs)return;
+      state.needs[metric]=Math.min(100,(state.needs[metric]||0)+updates[metric]);
+      save();render();
+      toast(metric==="hunger"?"You enjoyed a meal.":metric==="energy"?"You took time to rest.":"You spent time connecting with your community.");
+    }
     else if(a==="follow-user"){
       if(!authUser){authModal("signin");return;}
       apiRequest("/api/users/"+encodeURIComponent(id)+"/follow",{method:"POST",body:"{}"}).then(()=>{toast("You're now following this member.");b.textContent="Following ✓";b.disabled=true;}).catch(err=>toast(err.message,true));
