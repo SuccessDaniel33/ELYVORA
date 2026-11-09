@@ -137,7 +137,7 @@
     const button=form.querySelector('button[type="submit"]');if(button){button.disabled=true;button.textContent="Please wait…";}
     try{
       const result=await apiRequest(mode==="signup"?"/api/auth/register":"/api/auth/login",{method:"POST",body:JSON.stringify(payload)});
-      applyUser(result.user);await Promise.all([refreshFeed(),refreshEconomy(),refreshJobs()]);closeModal();render();toast(mode==="signup"?"Your ELYVORA account is ready.":"Welcome back to ELYVORA.");
+      applyUser(result.user);await Promise.all([refreshFeed(),refreshEconomy(),refreshJobs(),refreshConversations()]);closeModal();render();toast(mode==="signup"?"Your ELYVORA account is ready.":"Welcome back to ELYVORA.");
     }catch(error){toast(error.message,true);if(button){button.disabled=false;button.textContent=mode==="signup"?"Create account":"Sign in";}}
   }
   async function logout(){
