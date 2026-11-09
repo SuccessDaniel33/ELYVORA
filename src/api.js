@@ -678,7 +678,7 @@ export async function handleApi(request, env) {
         (SELECT u.id FROM conversation_members cm2 JOIN users u ON u.id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_user_id,
         (SELECT u.display_name FROM conversation_members cm2 JOIN users u ON u.id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_user_name,
         (SELECT u.username FROM conversation_members cm2 JOIN users u ON u.id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_username,
-        (SELECT cm2.last_read_at FROM conversation_members cm2 WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_last_read_at
+        (SELECT CASE WHEN COALESCE(up.read_receipts,1)=1 THEN cm2.last_read_at ELSE NULL END FROM conversation_members cm2 LEFT JOIN user_privacy up ON up.user_id=cm2.user_id WHERE cm2.conversation_id=c.id AND cm2.user_id<>? LIMIT 1) AS other_last_read_at
         FROM conversations c JOIN conversation_members cm ON cm.conversation_id=c.id
         WHERE cm.user_id=? AND NOT EXISTS(
           SELECT 1 FROM conversation_members cp WHERE cp.conversation_id=c.id AND cp.user_id<>? AND EXISTS(
@@ -711,6 +711,8 @@ export async function handleApi(request, env) {
       const user=await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
       const member=await env.DB.prepare("SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?").bind(liveChatMatch[1],user.id).first();
       if(!member)return fail("Conversation not found.",404,"not_found");
+      const blockedPeer=await env.DB.prepare("SELECT cm.user_id FROM conversation_members cm WHERE cm.conversation_id=? AND cm.user_id<>? AND EXISTS(SELECT 1 FROM user_blocks b WHERE (b.blocker_id=? AND b.blocked_id=cm.user_id) OR (b.blocker_id=cm.user_id AND b.blocked_id=?)) LIMIT 1").bind(liveChatMatch[1],user.id,user.id,user.id).first();
+      if(blockedPeer)return fail("Conversation not found.",404,"not_found");
       if(request.headers.get("Upgrade")?.toLowerCase()!=="websocket")return fail("A WebSocket connection is required.",426,"upgrade_required");
       if(!env.CHAT_ROOMS)return fail("Real-time messaging is not configured.",503,"realtime_unavailable");
       const room=env.CHAT_ROOMS.get(env.CHAT_ROOMS.idFromName(liveChatMatch[1]));
