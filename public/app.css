@@ -353,3 +353,8 @@ body{background:radial-gradient(ellipse at 72% -25%,rgba(66,127,189,.13),transpa
 .profile-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
 .profile-summary .avatar{width:58px;height:58px;border-radius:18px}
 @media(max-width:600px){.profile-main-card .profile-cover{height:120px}.profile-interests{padding:0 15px 14px}.member-actions{gap:6px}.member-actions button{min-width:calc(50% - 6px)}}
+
+/* Presence indicators and account feedback */
+.online-indicator{display:inline-flex;align-items:center;gap:5px;color:#8fe0ae;font-size:10px;font-weight:600;white-space:nowrap}
+.online-indicator::before{content:"";width:6px;height:6px;border-radius:50%;background:#77d89e;box-shadow:0 0 8px rgba(119,216,158,.55)}
+.profile-main-card .profile-copy .tag{margin-top:4px}
