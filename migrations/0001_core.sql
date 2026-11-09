@@ -171,6 +171,16 @@ CREATE TABLE IF NOT EXISTS reports (
   status TEXT NOT NULL DEFAULT 'open',
   created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS auth_attempts (
+  id TEXT PRIMARY KEY,
+  ip_hash TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_auth_attempts_ip ON auth_attempts(ip_hash, created_at DESC);
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version INTEGER PRIMARY KEY,
+  applied_at INTEGER NOT NULL
+);
 
 INSERT OR IGNORE INTO jobs (id,title,organization,description,category,location,compensation_label,status,created_at) VALUES
 ('community-host','Community host','ELYVORA COMMUNITY','Welcome new members, support healthy discussions and help communities thrive.','Community','Remote','Paid role · Details after verification','open',unixepoch()),
@@ -183,4 +193,5 @@ INSERT OR IGNORE INTO properties (id,name,city,country,description,price,status)
 ('london-loft','Skyline loft','London','United Kingdom','A bright virtual home overlooking the riverside district.',1800,'available'),
 ('tokyo-retreat','Garden retreat','Tokyo','Japan','A peaceful virtual retreat in the east gardens district.',1350,'available');
 
+INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES (1,unixepoch());
 PRAGMA user_version = 1;
