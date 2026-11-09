@@ -258,6 +258,7 @@
       const j=jobs.find(x=>x.id===id);if(j&&!state.jobsDone.includes(id)){state.jobsDone.push(id);state.balance+=j.pay;addTransaction(j.title,j.pay,"in","Career activity reward");save();render();toast("Activity completed! "+j.pay+" demo credits added.");}
     }
     else if(a==="buy-property"){
+      if(remoteEconomy&&authUser){apiRequest("/api/economy/properties/"+encodeURIComponent(id)+"/purchase",{method:"POST",body:"{}"}).then(refreshEconomy).then(()=>{render();toast("Virtual property added to your portfolio.");}).catch(err=>toast(err.message,true));return;}
       const p=properties.find(x=>x.id===id);
       if(!p)return;
       if(state.owned.includes(id))toast("You already own this virtual property.");
