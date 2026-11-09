@@ -1,5 +1,4 @@
 -- ELYVORA core schema v1
-PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
@@ -194,4 +193,3 @@ INSERT OR IGNORE INTO properties (id,name,city,country,description,price,status)
 ('tokyo-retreat','Garden retreat','Tokyo','Japan','A peaceful virtual retreat in the east gardens district.',1350,'available');
 
 INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES (1,unixepoch());
-PRAGMA user_version = 1;
