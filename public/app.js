@@ -236,7 +236,7 @@
     else if(a==="edit-profile")editProfile();
     else if(a==="close-modal")closeModal();
     else if(a==="dismiss-banner"){state.banner=false;save();setHeader();}
-    else if(a==="like"){const p=state.posts.find(x=>x.id===id);if(p){p.liked=!p.liked;p.likes+=p.liked?1:-1;save();render();}}
+    else if(a==="like"){const p=state.posts.find(x=>x.id===id);if(p){if(p.remote&&authUser){apiRequest("/api/posts/"+encodeURIComponent(id)+"/like",{method:"POST",body:"{}"}).then(refreshFeed).then(render).catch(err=>toast(err.message,true));}else{p.liked=!p.liked;p.likes+=p.liked?1:-1;save();render();}}}
     else if(a==="comment")toast("Comments will be enabled with shared conversations in the next stage.");
     else if(a==="share"){if(navigator.clipboard?.writeText)navigator.clipboard.writeText(location.origin).then(()=>toast("ELYVORA link copied.")).catch(()=>toast("Share link: "+location.href));else toast("Share ELYVORA with your friends.");}
     else if(a==="post-options")toast("Post controls will expand with full member accounts.");
