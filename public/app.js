@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const STORE = "elyvora.prototype.v1";
+  const STORE = "elyvora.prototype.v2";
   const starter = {
     profile:{name:"Guest",handle:"guest",bio:"",location:"",role:"",avatar:"E"},
     balance:0,posts:[],messages:{},activeChat:null,transactions:[],owned:[],jobsDone:[],needs:null,banner:false
@@ -20,7 +20,7 @@
   let incomingCall = null;
   let recordingState = null;
   let currentView = "home";
-  let discoverFilter = "All";
+  let discoverFilter = "People";
   let discoverQuery = "";
   let toastTimer;
   const root = document.querySelector("#view-root");
@@ -418,7 +418,7 @@
     document.querySelector("#top-avatar").textContent=initials(state.profile.name);
     const accountButton=document.querySelector("#account-button");
     if(accountButton)accountButton.textContent=authUser?"Sign out":"Sign in";
-    document.querySelector("#message-count").textContent=Object.values(state.messages).reduce((n,a)=>n+a.length,0)>0?"2":"0";
+    document.querySelector("#message-count").textContent=String(remoteConversations?.length||0);
     document.querySelector("#demo-banner").hidden=!state.banner;
   }
   function pageHead(kicker,title,desc,actions=""){return '<div class="page-head"><div><p class="eyebrow">'+kicker+'</p><h1>'+title+'</h1><p>'+desc+'</p></div><div class="head-actions">'+actions+"</div></div>";}
@@ -453,16 +453,6 @@
     return pageHead("FIND YOUR PEOPLE","Discover something new.","Explore communities, people, opportunities and places across the ELYVORA world.")+
     '<div class="main-column"><section class="discovery-hero"><p class="eyebrow">THE WORLD IS BIGGER TOGETHER</p><h2>Follow your curiosity.</h2><p>Find the people, places and ideas that make your world feel a little bigger.</p><div style="margin-top:18px"><input class="search-field" id="discover-search" value="'+safe(discoverQuery)+'" placeholder="'+(peopleMode?"Search members by name or username...":"Search communities, places or opportunities...")+'"></div><div class="chips">'+["All","Community","Place","Career","People"].map(x=>'<button class="filter-chip '+(discoverFilter===x?"active":"")+'" data-filter="'+x+'">'+x+'</button>').join("")+'</div></section><div class="section-label"><span>'+(peopleMode?"People on ELYVORA":"Explore ELYVORA")+'</span><span class="tag">'+(peopleMode?(remoteUsers||[]).length:filtered.length)+' '+(peopleMode?"members":"suggestions")+'</span></div>'+(peopleMode?'<div class="three-col">'+peopleCards+'</div>':'<div class="three-col">'+placeCards+'</div>')+emptyState+'</div>';
   }
-  function worldView(){
-    const districts=[
-      {id:"yaba",name:"Yaba Exchange",area:"Mainland",icon:"⌘",desc:"A busy creative district for founders, makers, students and new ideas.",status:"COMMUNITY HUB"},
-      {id:"surulere",name:"Surulere",area:"Mainland",icon:"✦",desc:"Neighbourhood culture, food, sport and everyday stories.",status:"CULTURE DISTRICT"},
-      {id:"victoria",name:"Victoria Island",area:"Island",icon:"▤",desc:"Business towers, waterfront spaces and professional connections.",status:"BUSINESS DISTRICT"},
-      {id:"lekki",name:"Lekki Gardens",area:"Island",icon:"⌂",desc:"Homes, green spaces and places to slow down.",status:"RESIDENTIAL DISTRICT"}
-    ];
-    return pageHead("EXPLORE ELYVORA","A city that feels alive.","Start in Lagos. Meet people, visit neighbourhoods and discover opportunities across the ELYVORA world.",'<span class="tag accent">CITY MAP · LAGOS EDITION</span>')+
-    '<div class="main-column"><section class="city-map-panel"><img class="city-map-image" src="/city-map.svg" alt="Illustrated ELYVORA Lagos-inspired city map showing Yaba, Surulere, Victoria Island and Lekki" loading="eager"><div class="city-map-top"><span class="map-live"><i></i> ELYVORA CITY GUIDE</span><span class="tag">MAINLAND ↔ ISLAND</span></div><div class="city-map-footer"><div><p class="eyebrow">YOUR NEXT STOP</p><h2>There is always somewhere to go.</h2><p>Pick a district below to explore its people, places and possibilities.</p></div><button class="button-primary" data-action="visit-place" data-name="Yaba Exchange">Start exploring ↗</button></div></section><div class="city-stats-row"><div class="card city-stat"><b>04</b><small>Featured districts</small></div><div class="card city-stat"><b>12</b><small>Places to discover</small></div><div class="card city-stat"><b>∞</b><small>Stories to create</small></div></div><div class="section-label"><span>Choose your neighbourhood</span><span class="tag">LAGOS · NIGERIA</span></div><div class="two-col">'+districts.map(d=>'<article class="card district-card"><div class="district-icon">'+d.icon+'</div><div class="district-main"><span class="eyebrow">'+d.status+'</span><h3>'+d.name+'</h3><small>'+d.area+'</small><p>'+d.desc+'</p><button class="button-quiet" data-action="visit-place" data-name="'+d.name+'">Explore district ↗</button></div></article>').join("")+'</div><div class="callout">This is ELYVORA’s original illustrated city map and first destination layer. Live street maps, real-time geolocation, routing and fully walkable 3D environments are separate development stages.</div></div>';
-  }
   function chatList(){
     return '<div class="inbox-list" id="inbox-list"><div class="inbox-top"><h3>Your conversations</h3><input id="chat-search" class="search-field" placeholder="Search conversations..."></div>'+[
       ["tobi","Tobi Adebayo","T","That sounds exciting. We should exchange ideas sometime!","10:28"],
@@ -490,19 +480,6 @@
     {id:"guide",icon:"⌖",title:"Local experience guide",org:"WORLD EXPLORERS",desc:"Share local recommendations and help people discover new destinations.",pay:160,skill:"Local knowledge"},
     {id:"builder",icon:"⌘",title:"Product assistant",org:"BUILDERS STUDIO",desc:"Help a small team test ideas, organize feedback and shape better experiences.",pay:250,skill:"Problem solving"}
   ];
-  function lifeView(){
-    const p=state.profile,needs=state.needs||starter.needs;
-    const metrics=[
-      ["hunger","Hunger","◒",needs.hunger,"Eat well and keep your energy up."],
-      ["energy","Energy","☼",needs.energy,"Rest and reset after a busy day."],
-      ["fun","Fun","✦",needs.fun,"Make room for experiences you enjoy."],
-      ["social","Social","♡",needs.social,"Stay connected with your people."],
-      ["hygiene","Hygiene","✧",needs.hygiene,"Take care of yourself each day."],
-      ["bladder","Comfort","◉",needs.bladder,"Look after the little everyday needs."]
-    ];
-    return pageHead("YOUR STORY, YOUR PACE","Your life in ELYVORA.","A personal space to shape your routine, find your place and build your next chapter.",'<span class="tag accent">LIFE SIMULATION PREVIEW</span>')+
-      '<div class="main-column"><section class="card life-profile-card"><div class="life-profile-art"></div><div class="life-profile-body">'+avatar(initials(p.name),"avatar-you")+'<div><p class="eyebrow">YOUR CHARACTER</p><h2>'+safe(p.name)+'</h2><p>'+safe(p.role)+' · '+safe(p.location)+'</p></div><span class="tag">EXPLORER · LEVEL 01</span></div></section><section class="card card-pad"><div class="card-title"><h3>How are you doing?</h3><span class="tag">DAILY STATUS</span></div><div class="needs-grid">'+metrics.map(m=>'<div class="need-card"><div class="need-heading"><span>'+m[2]+' '+m[1]+'</span><b>'+Math.round(m[3])+'%</b></div><div class="need-track"><span style="width:'+Math.max(0,Math.min(100,m[3]))+'%"></span></div><small>'+m[4]+'</small></div>').join("")+'</div></section><div class="section-label"><span>Choose your next move</span><span class="tag">DAILY ROUTINE</span></div><div class="three-col"><button class="card life-action-card" data-action="life-action" data-need="hunger"><span>🍲</span><b>Have a meal</b><small>Restore hunger</small></button><button class="card life-action-card" data-action="life-action" data-need="energy"><span>☀</span><b>Take a rest</b><small>Restore energy</small></button><button class="card life-action-card" data-action="life-action" data-need="social"><span>♡</span><b>Connect with people</b><small>Boost social</small></button></div><section class="card card-pad"><div class="card-title"><h3>Your life, connected</h3><a data-view="world">Explore city ↗</a></div><div class="two-col"><div class="life-link-row"><span class="mini-icon">⌖</span><div><b>Find somewhere new</b><small>Explore neighbourhoods and destinations</small><button class="subtle-link" data-view="world">Open city map →</button></div></div><div class="life-link-row"><span class="mini-icon">▥</span><div><b>Grow your career</b><small>Discover new opportunities and skills</small><button class="subtle-link" data-view="careers">Explore careers →</button></div></div><div class="life-link-row"><span class="mini-icon">⌂</span><div><b>Find your place</b><small>Explore homes in the virtual world</small><button class="subtle-link" data-view="economy">View properties →</button></div></div><div class="life-link-row"><span class="mini-icon">♡</span><div><b>Stay connected</b><small>Talk to friends and meet new people</small><button class="subtle-link" data-view="messages">Open messages →</button></div></div></div></section><div class="callout">Your character needs are an early local simulation preview saved in this browser. A full persistent life simulation—with time, jobs, housing, travel, inventories and shared city events—is part of ELYVORA&#39;s next game-system phase.</div></div>';
-  }
   function careersView(){
     const careerItems=remoteJobs?.length?remoteJobs.map(j=>({id:j.id,icon:"✧",title:j.title,org:j.organization,desc:j.description,skill:j.category,compensation_label:j.compensation_label,remote:true,application_status:j.application_status})):jobs;
     const appliedCount=careerItems.filter(j=>j.application_status||state.jobsDone.includes(j.id)).length;
