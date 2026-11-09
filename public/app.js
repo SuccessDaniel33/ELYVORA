@@ -49,7 +49,8 @@
   }
   function save(){try{localStorage.setItem(STORE,JSON.stringify(state));}catch{}}
   async function apiRequest(path, options={}){
-    const headers={"Accept":"application/json",...(options.body?{"Content-Type":"application/json"}:{}),...(options.headers||{})};
+    const isFormData=typeof FormData!=="undefined"&&options.body instanceof FormData;
+    const headers={"Accept":"application/json",...(options.body&&!isFormData?{"Content-Type":"application/json"}:{}),...(options.headers||{})};
     const response=await fetch(path,{credentials:"same-origin",...options,headers});
     let data={};try{data=await response.json();}catch{}
     if(!response.ok)throw new Error(data.error?.message||"The request could not be completed.");
