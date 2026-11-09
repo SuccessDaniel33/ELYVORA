@@ -200,8 +200,8 @@
       state.posts.unshift({id:"p"+Date.now(),name:state.profile.name,handle:"@"+state.profile.handle,time:"Just now",text,art:fd.get("art"),image:(fd.get("image")||"").trim(),likes:0,comments:0,liked:false});
       save();closeModal();go(currentView==="profile"?"profile":"home");toast("Your post is now in your local demo feed.");
     }else if(e.target.id==="profile-form"){
-      e.preventDefault();const fd=new FormData(e.target);state.profile={...state.profile,name:String(fd.get("name")).trim(),handle:String(fd.get("handle")).trim().replace(/^@/,"").replace(/[^a-zA-Z0-9_.]/g,""),bio:String(fd.get("bio")).trim(),location:String(fd.get("location")).trim(),role:String(fd.get("role")).trim()};
-      state.posts.forEach(p=>{if(p.handle.startsWith("@")&&p.handle.slice(1)===state.profile.handle){p.name=state.profile.name;}});
+      e.preventDefault();const fd=new FormData(e.target);const previousHandle=state.profile.handle;state.profile={...state.profile,name:String(fd.get("name")).trim(),handle:String(fd.get("handle")).trim().replace(/^@/,"").replace(/[^a-zA-Z0-9_.]/g,""),bio:String(fd.get("bio")).trim(),location:String(fd.get("location")).trim(),role:String(fd.get("role")).trim()};
+      state.posts.forEach(p=>{if(p.handle==="@"+previousHandle){p.handle="@"+state.profile.handle;p.name=state.profile.name;}});
       save();closeModal();render();toast("Your profile has been updated on this device.");
     }else if(e.target.id==="chat-form"){
       e.preventDefault();const input=document.querySelector("#chat-input"),text=input.value.trim();if(!text)return;
