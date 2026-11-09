@@ -30,6 +30,9 @@
   let activeConversationId = null;
   let chatSocket = null;
   let chatSocketConversationId = null;
+  let callState = null;
+  let incomingCall = null;
+  let recordingState = null;
   let currentView = "home";
   let discoverFilter = "All";
   let discoverQuery = "";
