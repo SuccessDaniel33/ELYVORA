@@ -352,7 +352,7 @@
     const v=e.target.closest("[data-view]");
     if(v){e.preventDefault();go(v.dataset.view);return;}
     const f=e.target.closest("[data-filter]");
-    if(f){discoverFilter=f.dataset.filter;render();return;}
+    if(f){discoverFilter=f.dataset.filter;remoteUsers=[];render();if(discoverFilter==="People"&&authUser&&discoverQuery.trim().length>=2)searchDiscoverMembers(discoverQuery).then(render).catch(err=>toast(err.message,true));return;}
     const chat=e.target.closest("[data-chat]");
     if(chat){state.activeChat=chat.dataset.chat;save();render();return;}
     const conversation=e.target.closest("[data-conversation]");
