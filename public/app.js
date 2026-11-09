@@ -356,7 +356,7 @@
     else if(a==="share"){if(navigator.clipboard?.writeText)navigator.clipboard.writeText(location.origin).then(()=>toast("ELYVORA link copied.")).catch(()=>toast("Share link: "+location.href));else toast("Share ELYVORA with your friends.");}
     else if(a==="post-options")toast("Post controls will expand with full member accounts.");
     else if(a==="story")toast("Opening "+b.dataset.name+"'s story — story playback is coming soon.");
-    else if(a==="video-post")toast("Video uploads are planned for the media release. This prototype currently supports text and image URLs.");
+    else if(a==="video-post"){createPost();const mediaType=modalContent.querySelector('select[name="mediaType"]');if(mediaType)mediaType.value="video";}
     else if(a==="voice-note")toast("Voice notes need microphone capture and secure media storage. They are on the communication roadmap.");
     else if(a==="voice-call")toast("Audio calling is planned. Live calls need the real-time calling service and user permissions.");
     else if(a==="video-call")toast("Video calling is planned. Live calls need the real-time calling service and user permissions.");
