@@ -299,4 +299,5 @@
   });
   modal.addEventListener("click",e=>{if(e.target===modal)closeModal();});
   render();
+  initRemote();
 })();
