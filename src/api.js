@@ -531,7 +531,7 @@ export async function handleApi(request, env) {
       if(!owner&&contentVisibility==="private")return fail("Comments are not available for this post.",403,"content_restricted");
       if(!owner&&contentVisibility==="followers"&&!follows)return fail("Follow this member to view the discussion.",403,"content_restricted");
       if(method==="GET"){
-        const rows=await env.DB.prepare("SELECT c.id,c.body,c.created_at,u.display_name,u.username,u.avatar_url FROM comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=? AND c.deleted_at IS NULL ORDER BY c.created_at ASC LIMIT 100").bind(commentMatch[1]).all();
+        const rows=await env.DB.prepare("SELECT c.id,c.body,c.created_at,u.display_name,u.username,u.avatar_url FROM comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=? AND c.deleted_at IS NULL AND (?='' OR NOT EXISTS(SELECT 1 FROM user_blocks b WHERE (b.blocker_id=? AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=?))) ORDER BY c.created_at ASC LIMIT 100").bind(commentMatch[1],viewer?.id||"",viewer?.id||"",viewer?.id||"").all();
         return json({comments:rows.results||[]});
       }
       const denied=requireUser(viewer);if(denied)return denied;
@@ -552,10 +552,11 @@ export async function handleApi(request, env) {
         CASE WHEN COALESCE(up.show_online,1)=1 AND EXISTS(SELECT 1 FROM sessions s WHERE s.user_id=u.id AND s.expires_at>? AND s.last_seen_at>?) THEN 1 ELSE 0 END AS is_online
         FROM users u LEFT JOIN user_privacy up ON up.user_id=u.id LEFT JOIN account_profiles ap ON ap.user_id=u.id
         WHERE u.is_active=1 AND u.id<>? AND (u.username LIKE ? OR u.display_name LIKE ?)
-          AND COALESCE(up.profile_visibility,'public') IN ('public','followers')
+          AND (COALESCE(up.profile_visibility,'public')='public' OR
+            (COALESCE(up.profile_visibility,'public')='followers' AND EXISTS(SELECT 1 FROM follows fx WHERE fx.follower_id=? AND fx.following_id=u.id)))
           AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE b.blocker_id=? AND b.blocked_id=u.id)
           AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE b.blocker_id=u.id AND b.blocked_id=?)
-        ORDER BY u.display_name LIMIT 20`).bind(user.id,Math.floor(Date.now()/1000),Math.floor(Date.now()/1000)-300,user.id,"%"+q+"%","%"+q+"%",user.id,user.id).all();
+        ORDER BY u.display_name LIMIT 20`).bind(user.id,Math.floor(Date.now()/1000),Math.floor(Date.now()/1000)-300,user.id,"%"+q+"%","%"+q+"%",user.id,user.id,user.id).all();
       return json({users:rows.results||[]});
     }
 
