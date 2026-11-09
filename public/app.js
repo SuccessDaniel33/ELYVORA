@@ -262,6 +262,7 @@
   function go(view){
     if(!["home","discover","world","messages","careers","economy","profile"].includes(view))return;
     currentView=view;document.querySelector("#sidebar").classList.remove("open");render();window.scrollTo({top:0,behavior:"smooth"});
+    if(view==="messages"&&authUser){refreshConversations().then(render).catch(err=>toast(err.message,true));}
   }
   function toast(text,warn=false){
     const region=document.querySelector("#toast-region"),el=document.createElement("div");
