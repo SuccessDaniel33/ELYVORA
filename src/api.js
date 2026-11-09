@@ -201,6 +201,18 @@ export async function handleApi(request, env) {
       return user ? json({user:publicUser(user)}) : json({user:null});
     }
 
+    if (method === "POST" && path === "/api/profile") {
+      const user = await currentUser(request,env.DB);const denied=requireUser(user);if(denied)return denied;
+      const data=await bodyJson(request),displayName=String(data.displayName||"").trim(),username=String(data.username||"").trim().replace(/^@/,"").toLowerCase(),bio=String(data.bio||"").trim(),location=String(data.location||"").trim(),role=String(data.role||"").trim();
+      if(displayName.length<2||displayName.length>50)return fail("Your display name must be 2–50 characters.");
+      if(!/^[a-z0-9_.]{3,24}$/.test(username))return fail("Username must be 3–24 characters using letters, numbers, underscores or dots.");
+      if(bio.length>220||location.length>80||role.length>80)return fail("One or more profile fields are too long.");
+      try{await env.DB.prepare("UPDATE users SET display_name=?,username=?,bio=?,location=?,role=?,updated_at=? WHERE id=?").bind(displayName,username,bio,location,role,Math.floor(Date.now()/1000),user.id).run();}
+      catch(error){if(String(error?.message||"").includes("UNIQUE"))return fail("That username is already in use.",409,"username_exists");throw error;}
+      const updated=await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(user.id).first();
+      return json({user:publicUser(updated)});
+    }
+
     if (method === "GET" && path === "/api/feed") {
       const user = await currentUser(request,env.DB);
       const limit = Math.min(50,Math.max(1,Number(url.searchParams.get("limit")||20)));
