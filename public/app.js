@@ -63,7 +63,7 @@
   async function refreshFeed(){
     const data=await apiRequest("/api/feed");
     remoteFeedLoaded=true;
-    state.posts=(data.posts||[]).map(p=>({id:p.id,name:p.author?.name||p.display_name,handle:"@"+(p.author?.username||p.username),time:relativeTime(p.created_at),text:p.body,art:"none",image:p.media_url||"",likes:Number(p.likes||0),comments:Number(p.comments||0),liked:Boolean(p.liked),remote:true}));
+    state.posts=(data.posts||[]).map(p=>({id:p.id,name:p.author?.name||p.display_name,handle:"@"+(p.author?.username||p.username),time:relativeTime(p.created_at),text:p.body,art:"none",image:p.media_url||"",mediaType:p.media_type||null,likes:Number(p.likes||0),comments:Number(p.comments||0),liked:Boolean(p.liked),remote:true}));
   }
   async function refreshEconomy(){
     if(!authUser){remoteEconomy=null;return;}
