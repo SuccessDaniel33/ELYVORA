@@ -333,6 +333,15 @@
     const guidance=authUser?"Paste a direct HTTPS link to an image or video already hosted elsewhere. Direct file uploads are coming when ELYVORA media storage is enabled.":"This is a local demo post. Add a public HTTPS media link if you want to preview an image or video on this device.";
     openModal("Share with your world",'<form id="post-form"><div class="form-group"><label>WHAT&#39;S ON YOUR MIND?</label><textarea class="form-control textarea" name="text" maxlength="700" placeholder="Share an idea, a moment or something you discovered..." required></textarea></div><div class="form-row"><div class="form-group"><label>MEDIA TYPE</label><select class="form-control" name="mediaType"><option value="image">Image</option><option value="video">Video</option></select></div><div class="form-group"><label>PUBLIC HTTPS MEDIA URL (OPTIONAL)</label><input class="form-control" name="mediaUrl" type="url" placeholder="https://..."></div></div><div class="callout">'+safe(guidance)+'</div><div class="modal-footer"><button class="button-quiet" type="button" data-action="close-modal">Cancel</button><button class="button-primary" type="submit">Publish post ↗</button></div></form>');
   }
+  async function openNotifications(){
+    if(!authUser){authModal("signin");toast("Sign in to view your notifications.");return;}
+    try{
+      const data=await apiRequest("/api/notifications");
+      const items=data.notifications||[];
+      const content=items.length?items.map(n=>'<div class="mini-row" style="align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--line)"><span class="mini-icon">'+(n.kind==="follow"?"◉":"✦")+'</span><span><b>'+safe(n.body)+'</b><small>'+relativeTime(n.created_at)+'</small></span>'+(n.read_at?'<span class="tag">READ</span>':'<button class="button-quiet" data-action="mark-notification" data-id="'+safe(n.id)+'">Mark read</button>')+'</div>').join(""):'<div class="empty-state"><div class="empty-icon">♧</div><h3>You are all caught up</h3><p>New activity and updates from your ELYVORA network will appear here.</p></div>';
+      openModal("Notifications",'<div class="mini-list">'+content+'</div>',"YOUR ACTIVITY");
+    }catch(error){toast(error.message,true);}
+  }
   async function openComments(postId){
     const post=state.posts.find(p=>p.id===postId);
     if(!post)return;
