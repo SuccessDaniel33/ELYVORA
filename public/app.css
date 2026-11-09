@@ -11,3 +11,170 @@
 .post-media-image{display:block;width:100%;max-height:420px;object-fit:contain;background:#0b1020}
 .media-video{min-height:0!important;background:#070b16!important}
 .post-media-video{display:block;width:100%;max-height:460px;object-fit:contain;background:#070b16}
+
+/* ELYVORA city edition — warm, welcoming and map-first visual language */
+:root{
+ color-scheme:light;
+ --bg:#eef1e7;--panel:#fffef9;--panel-2:#f7f7ef;--panel-3:#eaf0e3;
+ --ink:#1a3127;--muted:#687d70;--dim:#8b9a8e;--line:rgba(40,75,53,.13);
+ --violet:#23845d;--cyan:#4b9eb3;--lime:#a8cb74;--pink:#cf7897;
+ --radius:17px;--shadow:0 16px 42px rgba(35,66,45,.09);
+}
+body{background:radial-gradient(ellipse at 78% -8%,rgba(183,211,152,.34),transparent 38%),#eef1e7;color:var(--ink)}
+.sidebar{background:rgba(250,250,243,.97);border-right:1px solid rgba(40,75,53,.12);box-shadow:5px 0 25px rgba(39,64,45,.035)}
+.brand-symbol{background:linear-gradient(145deg,#42a575,#176746);box-shadow:0 7px 24px rgba(46,139,91,.18)}
+.brand-name,.mobile-brand>b{color:#1d4934}
+.workspace-label{color:#829185}
+.nav-item{color:#52685b}
+.nav-item:hover{background:#edf3e9;color:#1a3829}
+.nav-item.active{background:linear-gradient(100deg,#e2f0df,#edf5eb);color:#18583b;box-shadow:inset 3px 0 #2b9a68}
+.nav-icon{color:#299268}
+.nav-pill{background:#e2f3ee;color:#288c73}
+.nav-count{background:#298b63;color:#fff}
+.world-status{background:#f1f5eb;border-color:#dfe8dc}
+.world-status b{color:#34553f}
+.world-status small{color:#809085}
+.user-switch{color:#1a3127}
+.user-switch:hover{background:#eff4eb}
+.user-meta small{color:#77877c}
+.main-area{background:transparent}
+.topbar{background:rgba(247,248,241,.91);border-bottom-color:rgba(40,75,53,.1)}
+.breadcrumb b{color:#294d38}
+.global-search{background:#fffef9;border-color:#dce6d9;color:#648071}
+.global-search input{color:#183b2a}
+.global-search input::placeholder{color:#8c9b90}
+.global-search kbd{color:#748779;border-color:#d9e2d7}
+.demo-chip{border-color:#dbe7d1;background:#f0f5e7;color:#4c7c39}
+.demo-chip i{background:#69aa50}
+.icon-button{background:#fffef9;border-color:#dce6d9;color:#557466}
+.create-button,.button-primary{background:linear-gradient(110deg,#2c9a68,#176c4a);box-shadow:0 8px 25px rgba(37,127,82,.17)}
+.button-quiet,.filter-chip{background:#fffef9;border-color:#dce6d9;color:#486555}
+.button-quiet:hover,.filter-chip:hover{border-color:#7bb591;color:#1d6945}
+.avatar{border-color:rgba(255,255,255,.88)}
+.demo-banner{border-color:#d9e7c9;background:#f3f7eb;color:#62735f}
+.demo-banner b{color:#3e653a}
+.demo-banner button{color:#8b9a80}
+.content-wrap{color:var(--ink)}
+.page-head h1{color:#1b3529}
+.page-head p:not(.eyebrow){color:#718276}
+.eyebrow{color:#288861}
+.card{background:#fffef9;border-color:rgba(40,75,53,.11);box-shadow:0 10px 35px rgba(37,68,45,.055)}
+.card-title h3,.section-label{color:#254432}
+.card-title a,.subtle-link{color:#23885e}
+.greeting-banner{background:linear-gradient(90deg,rgba(236,244,225,.98) 0%,rgba(236,244,225,.93) 43%,rgba(236,244,225,.1) 80%),url('/city-map.svg') center right/cover,#e3eddc;border-color:#d5e5d0;color:#193b2b}
+.greeting-banner:after{content:"";width:0;height:0;border:0;box-shadow:none}
+.greeting-banner .eyebrow{color:#2d8159}
+.greeting-banner h2{color:#173c2a}
+.greeting-banner p:not(.eyebrow){color:#536b5a}
+.button-outline-light{border-color:rgba(38,92,59,.28);background:rgba(255,255,255,.64);color:#22553a}
+.button-outline-light:hover{background:#fff}
+.stories{scrollbar-color:#b7cdb5 transparent}
+.story{color:#405b49}
+.story-ring{background:linear-gradient(135deg,#299969,#74b8bf,#c5d78e)}
+.story-face{border-color:#fffef9}
+.story.add .story-ring{background:#e8f1e4;border-color:#9cb89e}
+.story.add .story-face{background:#edf4e9;color:#20855a}
+.composer{background:#fffef9}
+.composer-entry{background:#f5f6ef;border-color:#e1e8dd;color:#7a8c7d}
+.composer-actions button{border-color:#dce6da;color:#4e8064}
+.composer-actions button:hover{background:#edf5eb;color:#208459}
+.post-user b{color:#243c2d}
+.post-user small{color:#829184}
+.post-menu{color:#849285}
+.post-body{color:#3f5547}
+.post-stats{color:#7c8d80;border-bottom-color:#e4eae0}
+.post-actions button{color:#718477}
+.post-actions button:hover{color:#23885e;background:#edf5eb}
+.post-actions button.liked{color:#cb658d;background:#fbf0f3}
+.tag{border-color:#e0e7dd;color:#597264;background:#f8faf5}
+.tag.accent{border-color:#c9e4d2;color:#27855b;background:#eff7ed}
+.profile-mini b,.mini-row b{color:#294533}
+.profile-mini small,.mini-row small{color:#7b8c80}
+.wallet-card{background:linear-gradient(135deg,#236849,#2d8c67 68%,#70aa73);border-color:#347d5e;color:white}
+.wallet-card .wallet-label,.wallet-card .wallet-caption,.wallet-card .wallet-meta{color:#e1f3e5}
+.wallet-card .wallet-amount{color:#fff}
+.quick-tile{background:#fbfcf7;border-color:#e3e9df;color:#274735}
+.quick-tile:hover{border-color:#91c2a0}
+.quick-tile span{color:#2d9165}
+.quick-tile small{color:#849387}
+.mini-icon{background:#eef4e9!important;color:#2f8b60!important}
+.discovery-hero{background:radial-gradient(circle at 83% 18%,rgba(177,212,157,.6),transparent 31%),linear-gradient(110deg,#e8f1e2,#eff4e9);border-color:#d5e5d0}
+.discovery-hero h2{color:#1c4b31}
+.discovery-hero p{color:#667d6b}
+.search-field,.form-control{background:#fffef9;border-color:#dfe8dc;color:#1e392a}
+.search-field::placeholder,.form-control::placeholder{color:#91a095}
+.filter-chip.active{background:#e0f0e2;border-color:#a7cfb0;color:#206b47}
+.feature-icon{background:#e6f2e6;color:#25885d}
+.feature-card h3{color:#274632}
+.feature-card p{color:#718477}
+.empty-state{color:#718477}
+.empty-state h3{color:#274632}
+.callout{border-color:#cfe2dc;background:#f0f7f2;color:#52756d}
+.world-hero{background:#eaf0e4;border-color:#d8e4d3}
+.world-overlay b{color:#274a34}
+.world-overlay small{color:#69806b}
+.world-bottom{color:#456951}
+.world-orbit,.world-globe,.world-pin,.world-label{display:none}
+.location-visual:after{background:linear-gradient(180deg,transparent,rgba(25,66,43,.38))}
+.location-info p{color:#728476}
+.location-info .button-quiet{background:#f8faf5}
+.career-reward{color:#37844a}
+.progress-track{background:#e4ebdf}
+.progress-track span{background:linear-gradient(90deg,#2c9b6a,#80bc7a)}
+.economy-balance{background:radial-gradient(circle at 85% 5%,rgba(209,239,167,.35),transparent 30%),linear-gradient(125deg,#2b684d,#348f68);border-color:#3d8b65;color:white}
+.economy-balance .balance-value{color:#fff}
+.economy-balance .balance-note{color:#e0efe1}
+.property-art{background:linear-gradient(145deg,#c5d7b6,#88b6a1)}
+.property-meta h3{color:#2e4b37}
+.property-meta p{color:#7a8d7e}
+.property-price{color:#36834c}
+.transaction-icon{background:#eef4e9;color:#2f8b60}
+.transaction-row b{color:#274533}
+.transaction-row small{color:#819084}
+.profile-cover{background:radial-gradient(circle at 78% 20%,rgba(199,231,164,.55),transparent 25%),radial-gradient(circle at 32% 85%,rgba(103,189,164,.34),transparent 27%),linear-gradient(120deg,#3e8b68,#87b98e,#b3cfa4)}
+.profile-summary .avatar{border-color:#fffef9}
+.profile-copy h2{color:#274632}
+.profile-copy p{color:#798a7e}
+.profile-bio{color:#526a5a}
+.profile-stats{border-top-color:#e4eae0}
+.profile-stats small{color:#829184}
+.inbox{background:#fffef9}
+.inbox-list{border-right-color:#e3e9df}
+.inbox-top{border-bottom-color:#e3e9df}
+.inbox-top h3{color:#294a35}
+.contact-row{color:#294432;border-bottom-color:#edf0e8}
+.contact-row:hover,.contact-row.active{background:#edf5eb}
+.contact-copy b{color:#2b4735}
+.contact-copy small{color:#7b8d80}
+.contact-time{color:#8a9a8d}
+.chat-heading{border-bottom-color:#e3e9df}
+.chat-heading b{color:#294832}
+.chat-heading small{color:#7c8e80}
+.chat-tools button{border-color:#dce6da;color:#50715e}
+.chat-tools button:hover{background:#eff5ec}
+.chat-messages{background:radial-gradient(ellipse at 50% 40%,rgba(184,215,171,.16),transparent 60%)}
+.chat-day{color:#8d9b8f}
+.message-bubble{background:#eef3e9;color:#304b39}
+.message-bubble.mine{background:linear-gradient(120deg,#2c9766,#257d59);color:white}
+.chat-compose{border-top-color:#e3e9df}
+.chat-compose input{background:#f8faf5;border-color:#dfe8dc;color:#254332}
+.chat-compose input::placeholder{color:#98a69a}
+.chat-compose button[type=submit]{background:#27885d}
+.modal-card{background:#fffef9;border-color:#dfe8dc;color:#1f3b2b}
+.modal-head h2{color:#244631}
+.modal-close{background:#f1f5ed;color:#587463}
+.form-group label{color:#6e8373}
+.form-control:focus{border-color:#73b88c;box-shadow:0 0 0 3px rgba(60,151,99,.12)}
+.form-control.textarea{background:#fffef9}
+.divider{background:#e5ebe1}
+.mobile-nav{background:rgba(250,250,243,.97);border-top-color:#dce6da}
+.mobile-nav button{color:#7b8d80}
+.mobile-nav button.active{color:#22865c}
+.toast{background:#fffef9;border-color:#c8ddca;color:#244631}
+.muted-copy{color:#74877a}
+.media-image,.media-video{background:#f3f5ef!important}
+@media(max-width:650px){
+ .sidebar.open{background:#fafaf3}
+ .greeting-banner{background:linear-gradient(90deg,rgba(236,244,225,.96),rgba(236,244,225,.7)),url('/city-map.svg') center/cover,#e3eddc}
+ .inbox-list{border-bottom-color:#e3e9df}
+}
