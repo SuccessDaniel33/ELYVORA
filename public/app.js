@@ -279,6 +279,58 @@
     if(incomingCall&&chatSocket?.readyState===WebSocket.OPEN){try{sendCallSignal({type:"call-reject",callId:incomingCall.callId,targetUserId:incomingCall.fromUserId});}catch{}}
     incomingCall=null;closeModal();
   }
+  async function uploadMediaFile(file){
+    const form=new FormData();
+    form.append("file",file,file.name||"elyvora-upload");
+    return apiRequest("/api/media/upload",{method:"POST",body:form});
+  }
+  async function sendChatMedia(file,messageType){
+    if(!authUser){authModal("signin");return;}
+    if(!activeConversationId){toast("Open a conversation before sending attachments.",true);return;}
+    if(file.size>1_000_000){toast("This first release supports files up to 1 MB. Larger files need the R2 storage upgrade.",true);return;}
+    try{
+      toast("Uploading "+(messageType==="voice"?"voice note":messageType)+"…");
+      const uploaded=await uploadMediaFile(file);
+      await apiRequest("/api/conversations/"+encodeURIComponent(activeConversationId)+"/messages",{method:"POST",body:JSON.stringify({body:messageType==="voice"?"Voice note":file.name||"",messageType,mediaUrl:uploaded.url})});
+      await refreshMessages(activeConversationId);
+      render();
+      toast(messageType==="voice"?"Voice note sent.":"Attachment sent.");
+    }catch(error){toast(error.message,true);}
+  }
+  async function toggleVoiceRecording(){
+    if(recordingState){
+      const current=recordingState;recordingState=null;
+      try{if(current.timer)clearTimeout(current.timer);if(current.recorder.state!=="inactive")current.recorder.stop();}catch{}
+      const button=document.querySelector('[data-action="toggle-recording"]');if(button)button.textContent="◖";
+      return;
+    }
+    if(!authUser){authModal("signin");return;}
+    if(!activeConversationId){toast("Open a conversation before recording a voice note.",true);return;}
+    if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined"){toast("Voice recording is not supported in this browser.",true);return;}
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      let options={};
+      for(const mime of ["audio/webm;codecs=opus","audio/ogg;codecs=opus"]){if(MediaRecorder.isTypeSupported(mime)){options={mimeType:mime};break;}}
+      const recorder=new MediaRecorder(stream,options),chunks=[];
+      const record={recorder,stream,chunks,timer:null};
+      recordingState=record;
+      recorder.addEventListener("dataavailable",event=>{if(event.data?.size)chunks.push(event.data);});
+      recorder.addEventListener("stop",async()=>{
+        for(const track of stream.getTracks())track.stop();
+        const mime=(recorder.mimeType||"audio/webm").split(";")[0];
+        const blob=new Blob(chunks,{type:mime});
+        if(blob.size>1_000_000){toast("That voice note is too large. Try a shorter recording.",true);return;}
+        if(blob.size<100){toast("No voice audio was captured. Please try again.",true);return;}
+        const extension=mime==="audio/ogg"?"ogg":mime==="audio/mp4"?"m4a":"webm";
+        const file=new File([blob],"voice-note-"+Date.now()+"."+extension,{type:mime});
+        await sendChatMedia(file,"voice");
+      });
+      recorder.start(250);
+      record.timer=setTimeout(()=>{if(recordingState===record){recordingState=null;try{recorder.stop();}catch{}toast("Voice note reached the 60-second limit.");}},60_000);
+      const button=document.querySelector('[data-action="toggle-recording"]');if(button)button.textContent="■";
+      toast("Recording voice note… press ■ to stop.");
+    }catch(error){toast(error.message||"Microphone permission is required to record a voice note.",true);}
+  }
   function toggleCallMic(){
     if(!callState)return;
     const tracks=callState.localStream?.getAudioTracks()||[];
