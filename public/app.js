@@ -310,7 +310,8 @@
     else if(a==="voice-call")toast("Audio calling is planned. Live calls need the real-time calling service and user permissions.");
     else if(a==="video-call")toast("Video calling is planned. Live calls need the real-time calling service and user permissions.");
     else if(a==="notifications")toast("You're all caught up. Notifications will appear here.");
-    else if(a==="new-chat")toast("New conversations will open when live member search is connected.");
+    else if(a==="new-chat")newChatModal();
+    else if(a==="start-chat")beginConversation(id);
     else if(a==="explore-item")toast("Opening "+b.dataset.name+" — discovery details are being built.");
     else if(a==="visit-place")toast("Welcome to the "+b.dataset.name+" destination preview.");
     else if(a==="career"){
