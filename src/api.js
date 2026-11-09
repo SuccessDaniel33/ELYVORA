@@ -199,11 +199,14 @@ async function isBlocked(db,firstId,secondId) {
   return Boolean(await db.prepare("SELECT 1 FROM user_blocks WHERE (blocker_id=? AND blocked_id=?) OR (blocker_id=? AND blocked_id=?) LIMIT 1")
     .bind(firstId,secondId,secondId,firstId).first());
 }
-function publicUser(row) {
-  return row ? { id: row.id, email: row.email, username: row.username, displayName: row.display_name, bio: row.bio,
-    location: row.location, city: row.city||"", country: row.country||"", role: row.role, avatarUrl: row.avatar_url,
-    coverImageUrl: row.cover_image_url||null, interests:parseInterests(row.interests_json), emailVerified:Boolean(row.email_verified_at),
-    createdAt: row.created_at } : null;
+function publicUser(row, includePrivate=false) {
+  if(!row)return null;
+  const result={id:row.id,username:row.username,displayName:row.display_name,bio:row.bio,location:row.location,
+    city:row.city||"",country:row.country||"",role:row.role,avatarUrl:row.avatar_url,
+    coverImageUrl:row.cover_image_url||null,interests:parseInterests(row.interests_json),
+    emailVerified:Boolean(row.email_verified_at),createdAt:row.created_at};
+  if(includePrivate)result.email=row.email;
+  return result;
 }
 async function currentUser(request, db) {
   const token = cookieValue(request, "elyvora_session");
@@ -257,7 +260,7 @@ export async function handleApi(request, env) {
       const id=mediaMatch[1],mediaUrl="/api/media/"+id;
       const asset=await env.DB.prepare("SELECT id,owner_id,mime_type,file_name,byte_length,data_b64 FROM media_assets WHERE id=?").bind(id).first();
       if(!asset)return fail("Media not found.",404,"not_found");
-      const publicPost=await env.DB.prepare("SELECT 1 FROM posts p JOIN user_privacy up ON up.user_id=p.user_id WHERE p.media_url=? AND p.visibility='public' AND p.deleted_at IS NULL AND up.profile_visibility='public' AND up.content_visibility='public' LIMIT 1").bind(mediaUrl).first();
+      const publicPost=await env.DB.prepare("SELECT 1 FROM posts p JOIN user_privacy up ON up.user_id=p.user_id WHERE p.media_url=? AND p.deleted_at IS NULL AND ((p.visibility='public' AND up.profile_visibility='public' AND up.content_visibility='public') OR (up.profile_visibility<>'private' AND up.content_visibility IN ('public','followers') AND EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=? AND f.following_id=p.user_id))) LIMIT 1").bind(mediaUrl,user?.id||"").first();
       const conversation=user?await env.DB.prepare("SELECT 1 FROM messages m JOIN conversation_members cm ON cm.conversation_id=m.conversation_id WHERE m.media_url=? AND cm.user_id=? LIMIT 1").bind(mediaUrl,user.id).first():null;
       const publicProfile=await env.DB.prepare(`SELECT 1 FROM users u JOIN user_privacy up ON up.user_id=u.id
         WHERE (u.avatar_url=? OR EXISTS(SELECT 1 FROM account_profiles ap WHERE ap.user_id=u.id AND ap.cover_image_url=?))
@@ -330,7 +333,7 @@ export async function handleApi(request, env) {
           '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#17212b"><h1>Welcome to ELYVORA</h1><p>Confirm your email address to help secure your account.</p><p><a href="'+escapeHtml(verifyUrl.toString())+'" style="display:inline-block;padding:12px 18px;background:#4e79d4;color:#fff;border-radius:8px;text-decoration:none">Verify email address</a></p><p>This link expires in 24 hours. If you did not create this account, you can ignore this email.</p></div>');
       }
       const user=await userRecord(env.DB,id);
-      return json({user:publicUser(user),wallet:{balance:1000},verificationSent},201,{"Set-Cookie":cookie});
+      return json({user:publicUser(user,true),wallet:{balance:1000},verificationSent},201,{"Set-Cookie":cookie});
     }
 
     if (method === "POST" && path === "/api/auth/login") {
@@ -341,7 +344,7 @@ export async function handleApi(request, env) {
       if (!user || !constantEqual(await passwordHash(password,user.password_salt),user.password_hash)) return fail("Your sign-in details do not match.", 401, "invalid_credentials");
       const cookie = await createSession(env.DB,user.id,request);
       const profile=await userRecord(env.DB,user.id);
-      return json({user:publicUser(profile)},200,{"Set-Cookie":cookie});
+      return json({user:publicUser(profile,true)},200,{"Set-Cookie":cookie});
     }
 
     if (method === "POST" && path === "/api/auth/logout") {
@@ -408,7 +411,7 @@ export async function handleApi(request, env) {
 
     if (method === "GET" && path === "/api/me") {
       const user = await currentUser(request,env.DB);
-      return user ? json({user:publicUser(await userRecord(env.DB,user.id))}) : json({user:null});
+      return user ? json({user:publicUser(await userRecord(env.DB,user.id),true)}) : json({user:null});
     }
 
     if (method === "POST" && path === "/api/profile") {
@@ -436,7 +439,7 @@ export async function handleApi(request, env) {
           env.DB.prepare("INSERT INTO account_profiles(user_id,country,city,cover_image_url,interests_json,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET country=excluded.country,city=excluded.city,cover_image_url=excluded.cover_image_url,interests_json=excluded.interests_json,updated_at=excluded.updated_at").bind(user.id,country,city,coverImageUrl,JSON.stringify(interests),now)
         ]);
       }catch(error){if(String(error?.message||"").includes("UNIQUE"))return fail("That username is already in use.",409,"username_exists");throw error;}
-      return json({user:publicUser(await userRecord(env.DB,user.id))});
+      return json({user:publicUser(await userRecord(env.DB,user.id),true)});
     }
 
     if(method==="GET"&&path==="/api/privacy"){
