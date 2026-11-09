@@ -17,6 +17,7 @@
     transactions:[{label:"Welcome credits",detail:"ELYVORA starter balance",amount:2450,type:"in",time:"Today"}],
     owned:[],
     jobsDone:[],
+    needs:{hunger:72,energy:68,fun:64,social:56,hygiene:86,bladder:82},
     banner:true
   };
   let state = load();
